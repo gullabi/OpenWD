@@ -100,6 +100,12 @@ class DAConfig:
     # flux at concentration 1 (0.2-0.3% at 3), while 100 layers already
     # resolve it and the stronger setting only added solver iterations.
     photospheric_depth_concentration: float | None = None
+    # Rosseland optical depth of the top layer of the structure solve. The
+    # default (1e-10) is the established preset. A smaller value (e.g. 1e-12)
+    # extends the LTE radiative-equilibrium solution upward; the number of
+    # layers grows with the log-tau span so the depth spacing is kept. LTE is
+    # itself uncertain that high in the atmosphere.
+    rosseland_depth_minimum: float = 1.0e-10
     synthesis_transfer_depth_refinement: int = 4
     # Cold solves whose lower boundary fails the absorption screen (alone or
     # with other checks) are re-run cold with a 4x deeper Rosseland bottom and
@@ -557,6 +563,7 @@ def compute_da(
                     config.effective_temperature,
                     config.logg,
                     n_depth=coarse_depth,
+                    tau_min=config.rosseland_depth_minimum,
                     n_continuum_wavelength=min(
                         120 if coarse_depth == 12 else 300,
                         resolution.n_continuum,
@@ -599,14 +606,27 @@ def compute_da(
 
         cold_full_solve = initial_atmosphere is None
         seed = atmosphere
+        tau_min = config.rosseland_depth_minimum
         tau_max = _DA_SEED_ROSSELAND_DEPTH_MAXIMUM
-        solve_depth = full_depth
+
+        def depth_points(top: float, bottom: float) -> int:
+            # Keep the preset's layers per decade for any requested span.
+            return int(np.ceil(full_depth * (
+                np.log(bottom / top)
+                / np.log(_DA_SEED_ROSSELAND_DEPTH_MAXIMUM / _DA_SEED_ROSSELAND_DEPTH_MINIMUM)
+            )))
+
+        solve_depth = (
+            full_depth if tau_min == _DA_SEED_ROSSELAND_DEPTH_MINIMUM
+            else depth_points(tau_min, tau_max)
+        )
         domain_segments = []
         for expansion in range(config.lower_boundary_extensions + 1):
             atmosphere = radiative_equilibrium_hydrogen_atmosphere(
                 config.effective_temperature,
                 config.logg,
                 n_depth=solve_depth,
+                tau_min=tau_min,
                 tau_max=tau_max,
                 n_continuum_wavelength=resolution.n_continuum,
                 max_iterations=(
@@ -647,10 +667,7 @@ def compute_da(
             # Layers grow with the log-tau span to keep the depth spacing.
             iteration_offset += iterations
             tau_max *= _DA_DEEPENING_FACTOR
-            solve_depth = int(np.ceil(full_depth * (
-                np.log(tau_max / _DA_SEED_ROSSELAND_DEPTH_MINIMUM)
-                / np.log(_DA_SEED_ROSSELAND_DEPTH_MAXIMUM / _DA_SEED_ROSSELAND_DEPTH_MINIMUM)
-            )))
+            solve_depth = depth_points(tau_min, tau_max)
             seed = None
         domain_iterations = iteration_offset + iterations
         if len(domain_segments) > 1:
@@ -678,6 +695,7 @@ def compute_da(
                 config.effective_temperature,
                 config.logg,
                 n_depth=2 * coarse.n_depth,
+                tau_min=tau_min,
                 tau_max=tau_max,
                 n_continuum_wavelength=resolution.n_continuum,
                 max_iterations=resolution.maximum_iterations,
