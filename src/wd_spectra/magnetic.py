@@ -1133,6 +1133,8 @@ class MagneticPhysics:
     normalize_balmer_strength: bool = False
     include_rwa_photoionization: bool = True
     include_cyclotron_absorption: bool = False
+    # Magnetic free-free Coulomb logarithm in the cyclotron term (PC03).
+    cyclotron_magnetic_coulomb_logarithm: bool = False
     include_magnetic_eos: bool = True
     include_centered_motion: bool = True
     include_molecular_absorption: bool = False
@@ -1408,6 +1410,7 @@ def synthesize_magnetic_hydrogen_spectrum(
                 free_absorption, free_scattering = isotropic_free_electron_opacity(
                     local, wavelength, field,
                     angular_quadrature_order=CYCLOTRON_ANGULAR_NODES,
+                    magnetic_coulomb_logarithm=physics.cyclotron_magnetic_coulomb_logarithm,
                 )
             else:
                 scattering = electron_scattering_mass_coefficient(local)[np.newaxis, :] + rayleigh
@@ -1471,7 +1474,10 @@ def synthesize_magnetic_hydrogen_spectrum(
         if dispersion is not None:
             _, rho_q, rho_v = dispersion.stokes(cosine)
         if include_cyclotron:
-            free = magnetized_free_electron_manifolds(local, wavelength, field, cosine)
+            free = magnetized_free_electron_manifolds(
+                local, wavelength, field, cosine,
+                magnetic_coulomb_logarithm=physics.cyclotron_magnetic_coulomb_logarithm,
+            )
             a_i, a_q, a_v = PolarizedOpacity(*free.absorption).stokes(cosine)
             s_i, s_q, s_v = PolarizedOpacity(*free.scattering).stokes(cosine)
             # Extinction carries both parts with their dichroism; the thermal
@@ -1642,7 +1648,8 @@ def magnetic_structure_opacity(
         result = unpolarized + rwa.isotropic()
         if physics.include_cyclotron_absorption and field > 0.0:
             absorption, _ = isotropic_free_electron_opacity(
-                current, grid, field, angular_quadrature_order=CYCLOTRON_ANGULAR_NODES
+                current, grid, field, angular_quadrature_order=CYCLOTRON_ANGULAR_NODES,
+                magnetic_coulomb_logarithm=physics.cyclotron_magnetic_coulomb_logarithm,
             )
             result = (
                 result
@@ -1660,7 +1667,8 @@ def magnetic_structure_opacity(
         if not (physics.include_cyclotron_absorption and field > 0.0):
             return np.zeros((grid.size, current.n_depth))
         _, magnetic = isotropic_free_electron_opacity(
-            current, grid, field, angular_quadrature_order=CYCLOTRON_ANGULAR_NODES
+            current, grid, field, angular_quadrature_order=CYCLOTRON_ANGULAR_NODES,
+            magnetic_coulomb_logarithm=physics.cyclotron_magnetic_coulomb_logarithm,
         )
         return magnetic - electron_scattering_mass_coefficient(current)[np.newaxis, :]
 

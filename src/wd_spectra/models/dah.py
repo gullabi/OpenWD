@@ -125,6 +125,11 @@ class DAHConfig:
     # Polarimetric output uses signed, uncompressed surface geometry.
     return_stokes: bool = False
     sky_position_angle_deg: float = 0.0
+    # With include_cyclotron_absorption: multiply the free-free of each
+    # circular mode by the first-Born magnetic Coulomb logarithm over its
+    # zero-field value (Potekhin & Chabrier 2003; see
+    # magnetic_continuum.magnetized_free_electron_manifolds).
+    cyclotron_magnetic_coulomb_logarithm: bool = False
 
 
 def _validate_stokes_config(config: DAHConfig, *, custom_surface_cells: bool = False) -> None:
@@ -524,6 +529,8 @@ def compute_dah(
 
         data.require(data.h2_h2_cia)
         cia = read_borysow_h2_h2_cia_table(data.h2_h2_cia)
+    if config.cyclotron_magnetic_coulomb_logarithm and not config.include_cyclotron_absorption:
+        raise ValueError("cyclotron_magnetic_coulomb_logarithm requires include_cyclotron_absorption")
     physics = MagneticPhysics(
         transitions,
         energies,
@@ -534,6 +541,7 @@ def compute_dah(
         h2_h2_cia_table=cia,
         include_rwa_photoionization=config.include_rwa_photoionization,
         include_cyclotron_absorption=config.include_cyclotron_absorption,
+        cyclotron_magnetic_coulomb_logarithm=config.cyclotron_magnetic_coulomb_logarithm,
         include_magnetic_eos=config.include_magnetic_eos,
         include_centered_motion=config.include_centered_motion,
         line_regime="h2db" if strong else "linear-zeeman",
@@ -715,6 +723,12 @@ def compute_dah(
             + "H2db Halpha-H12, "
             + ("RWA bound-free, " if config.include_rwa_photoionization else "")
             + ("cyclotron, " if config.include_cyclotron_absorption else "")
+            + (
+                "magnetic Coulomb log, "
+                if config.include_cyclotron_absorption
+                and config.cyclotron_magnetic_coulomb_logarithm
+                else ""
+            )
             + "zero-field Lyman/Paschen/Brackett"
         )
     convergence_status = warn_if_atmosphere_not_converged(atmosphere, "DAH")

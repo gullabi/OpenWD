@@ -749,6 +749,62 @@ def _explicit_rwa_atomic_kernels(
     return tuple(output)
 
 
+_MAGNETIC_FREE_FREE_TABLE = (
+    Path(__file__).with_name("data") / "gaunt" / "magnetic_free_free_coulomb_log.npz"
+)
+
+
+@lru_cache(maxsize=1)
+def _magnetic_free_free_table() -> tuple[FloatArray, FloatArray, FloatArray]:
+    with np.load(_MAGNETIC_FREE_FREE_TABLE) as table:
+        return (
+            np.asarray(table["log10_beta"], dtype=np.float64),
+            np.asarray(table["log10_frequency_ratio"], dtype=np.float64),
+            np.log(np.asarray(table["ratio"], dtype=np.float64)),
+        )
+
+
+def magnetic_free_free_coulomb_log_ratio(
+    beta: ArrayLike, frequency_ratio: ArrayLike, *, transverse: bool
+) -> FloatArray:
+    """Return ``Lambda_alpha(beta, u) / Lambda_cl(u)`` of e--p free--free.
+
+    ``beta = hbar w_c / kT``, ``frequency_ratio = w / w_c``; ``transverse``
+    selects ``alpha = +-1`` (both circular modes), otherwise ``alpha = 0``.
+    First-Born magnetic Coulomb logarithm, Potekhin & Chabrier (2003, ApJ 585,
+    955), Eq. (41), over its zero-field limit ``exp(u/2) K0(u/2)`` (Eq. 40),
+    tabulated by ``scripts/build_magnetic_free_free_table.py`` at
+    ``0.05 <= beta <= 10`` and ``0.1 <= w/w_c <= 10`` and interpolated
+    bilinearly in logarithms; arguments outside are clipped to the edge, and
+    the ratio is 1 below ``beta = 0.05``.  At 19 kK and 250 MG (``beta`` 1.8)
+    it is 1.2-1.5 for the transverse modes at 0.9-1.1 ``w_c`` and 0.5-0.6 at
+    ``w_c / 1.5``.
+    """
+
+    log_beta, log_ratio, log_table = _magnetic_free_free_table()
+    beta_array, ratio_array = np.broadcast_arrays(
+        np.asarray(beta, dtype=np.float64), np.asarray(frequency_ratio, dtype=np.float64)
+    )
+    tiny = np.finfo(float).tiny
+
+    def position(values: FloatArray, grid: FloatArray) -> tuple[NDArray[np.int64], FloatArray]:
+        clipped = np.clip(values, grid[0], grid[-1])
+        step = (grid[-1] - grid[0]) / (grid.size - 1)
+        index = np.clip(((clipped - grid[0]) / step).astype(np.int64), 0, grid.size - 2)
+        return index, (clipped - grid[index]) / step
+
+    i, fi = position(np.log10(np.maximum(beta_array, tiny)), log_beta)
+    j, fj = position(np.log10(np.maximum(ratio_array, tiny)), log_ratio)
+    table = log_table[int(bool(transverse))]
+    value = (
+        table[i, j] * (1.0 - fi) * (1.0 - fj)
+        + table[i + 1, j] * fi * (1.0 - fj)
+        + table[i, j + 1] * (1.0 - fi) * fj
+        + table[i + 1, j + 1] * fi * fj
+    )
+    return np.where(beta_array < 10.0 ** log_beta[0], 1.0, np.exp(value))
+
+
 @dataclass(frozen=True)
 class FreeElectronManifolds:
     """Magneto-ionic free-electron coefficients of the three circular modes.
@@ -780,6 +836,8 @@ def magnetized_free_electron_manifolds(
     wavelength_angstrom: ArrayLike,
     field_strength_megagauss: float,
     field_ray_cosine: float,
+    *,
+    magnetic_coulomb_logarithm: bool = False,
 ) -> FreeElectronManifolds:
     """Free-electron absorption, scattering and dispersion in a field.
 
@@ -799,8 +857,19 @@ def magnetized_free_electron_manifolds(
     ``nu/(nu + gamma_rad)``, and far from resonance the Faraday rotation
     falls as ``w_c / w^2``.  The co-rotating resonance is Doppler broadened
     (``sigma = w_c sqrt(kT/m c^2) |cos|``) with a Voigt profile; the other
-    modes are far from resonance.  Quantizing-field corrections to the
-    free--free Gaunt factor are not included.
+    modes are far from resonance.  By default quantizing-field corrections
+    to the free--free Gaunt factor are not included.
+
+    With ``magnetic_coulomb_logarithm`` the zero-field free--free of mode
+    ``q`` (and with it ``nu``) is multiplied by
+    ``Lambda_|q|(beta, u) / Lambda_cl(u)``, the first-Born magnetic Coulomb
+    logarithm of Potekhin & Chabrier (2003, ApJ 585, 955, Eqs. 40-43; Pavlov &
+    Panov 1976) over its zero-field Born value, ``beta = hbar w_c/kT``,
+    ``u = hbar w/kT``: PC03's recipe for keeping the exact zero-field
+    (non-Born) Gaunt factor.  The ratio is 1 below ``beta = 0.05``, so
+    ``B -> 0`` is unchanged.  Born is not valid at ``kT << 1 Ry``, so near
+    ``w_c`` the correction is uncertain by about a factor 2; see
+    :func:`magnetic_free_free_coulomb_log_ratio`.
     """
 
     from .opacity import electron_scattering_mass_coefficient
@@ -816,13 +885,31 @@ def magnetized_free_electron_manifolds(
     radiative = 2.0 * ELEMENTARY_CHARGE_ESU**2 * omega**2 / (
         3.0 * ELECTRON_MASS * LIGHT_SPEED**3
     )
-    collision = radiative * free_free / np.maximum(thomson, np.finfo(float).tiny)
-    damping = collision + radiative
     cyclotron = ELEMENTARY_CHARGE_ESU * field * 1.0e6 / (ELECTRON_MASS * LIGHT_SPEED)
-    numerator = omega**2 + damping**2
-    total = free_free + thomson
+    gaunt = {0: 1.0, 1: 1.0}
+    if magnetic_coulomb_logarithm and field > 0.0:
+        temperature = atmosphere.temperature[np.newaxis, :]
+        beta = PLANCK / (2.0 * PI) * cyclotron / (BOLTZMANN * temperature) * np.ones_like(omega)
+        ratio = omega / cyclotron * np.ones_like(beta)
+        # Lambda_perp has an integrable logarithmic peak at w_c: inside the
+        # Doppler core read it one Doppler width (at least 1e-3 w_c) away.
+        gap = np.maximum(
+            np.sqrt(BOLTZMANN * temperature / (ELECTRON_MASS * LIGHT_SPEED**2)) * cosine, 1.0e-3
+        )
+        off_peak = np.where(
+            np.abs(ratio - 1.0) < gap, 1.0 + np.where(ratio < 1.0, -gap, gap), ratio
+        )
+        gaunt = {
+            0: magnetic_free_free_coulomb_log_ratio(beta, ratio, transverse=False),
+            1: magnetic_free_free_coulomb_log_ratio(beta, off_peak, transverse=True),
+        }
     absorption, scattering, dispersion = [], [], []
     for q in (-1, 0, 1):
+        mode_free_free = free_free * gaunt[abs(q)]
+        collision = radiative * mode_free_free / np.maximum(thomson, np.finfo(float).tiny)
+        damping = collision + radiative
+        numerator = omega**2 + damping**2
+        total = mode_free_free + thomson
         detuning = omega - q * cyclotron
         if q == 1 and field > 0.0:
             doppler = (
@@ -839,7 +926,7 @@ def magnetized_free_electron_manifolds(
             lorentz = detuning**2 + damping**2
             factor = numerator / lorentz
             phase_factor = numerator / damping * (-detuning) / lorentz
-        absorption.append(free_free * factor)
+        absorption.append(mode_free_free * factor)
         scattering.append(thomson * factor)
         dispersion.append(total * phase_factor)
     return FreeElectronManifolds(tuple(absorption), tuple(scattering), tuple(dispersion))
@@ -851,6 +938,7 @@ def isotropic_free_electron_opacity(
     field_strength_megagauss: float,
     *,
     angular_quadrature_order: int = 12,
+    magnetic_coulomb_logarithm: bool = False,
 ) -> tuple[FloatArray, FloatArray]:
     """Angle-averaged Stokes-I free-electron (absorption, scattering).
 
@@ -864,7 +952,8 @@ def isotropic_free_electron_opacity(
     absorption = scattering = 0.0
     for cosine, weight in zip(cosines, weights):
         manifolds = magnetized_free_electron_manifolds(
-            atmosphere, wavelength_angstrom, field_strength_megagauss, cosine
+            atmosphere, wavelength_angstrom, field_strength_megagauss, cosine,
+            magnetic_coulomb_logarithm=magnetic_coulomb_logarithm,
         )
         c2 = cosine**2
         for store, triple in (("a", manifolds.absorption), ("s", manifolds.scattering)):
@@ -949,6 +1038,7 @@ __all__ = [
     "FreeElectronManifolds",
     "hydrogen_free_free_mass_absorption_coefficient",
     "isotropic_free_electron_opacity",
+    "magnetic_free_free_coulomb_log_ratio",
     "magnetized_free_electron_manifolds",
     "MAGNETIC_ATOMIC_FIELD_MEGAGAUSS",
     "ROHRMANN_2026_DOI",

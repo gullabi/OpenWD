@@ -323,6 +323,15 @@ The predicted Q/U/V have not been validated against polarimetry.
 magneto-ionic free-free and Thomson coefficients with a Doppler-broadened
 cyclotron resonance. Its broad optical absorption at hundreds of MG is not
 supported by all comparison objects and remains off by default.
+With it, `cyclotron_magnetic_coulomb_logarithm=True` multiplies each circular
+mode's free-free (and so the collision rate of the resonance) by the
+first-Born magnetic Coulomb logarithm over its zero-field value
+([Potekhin & Chabrier 2003](https://arxiv.org/abs/astro-ph/0212062), Eqs. 40-43;
+table built by `scripts/build_magnetic_free_free_table.py`). At 250 MG and
+19 kK this raises the co-rotating absorption 1.2-1.5x within 10 % of the
+resonance and lowers it to 0.5-0.6x at 1.5 times the cyclotron wavelength.
+Born is not valid at these temperatures, so near the resonance the factor is
+uncertain by about 2.
 
 ## Opt-in polarized output
 
