@@ -868,9 +868,10 @@ def magnetized_free_electron_manifolds(
     Panov 1976) over its zero-field Born value, ``beta = hbar w_c/kT``,
     ``u = hbar w/kT``: PC03's recipe for keeping the exact zero-field
     (non-Born) Gaunt factor.  The ratio is 1 below ``beta = 0.05``, so
-    ``B -> 0`` is unchanged.  Born is not valid at ``kT << 1 Ry``, so near
-    ``w_c`` the correction is uncertain by about a factor 2; see
-    :func:`magnetic_free_free_coulomb_log_ratio`.
+    ``B -> 0`` is unchanged.  Born is not valid at ``kT << 1 Ry``: close
+    coupling and classical trajectories at 250 MG and 19 kK give the q = +1
+    free-free near ``w_c`` at 0.1-0.25 of this option, so it is an upper
+    side there; see :func:`magnetic_free_free_coulomb_log_ratio`.
     """
 
     from .opacity import electron_scattering_mass_coefficient

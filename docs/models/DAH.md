@@ -330,8 +330,11 @@ first-Born magnetic Coulomb logarithm over its zero-field value
 table built by `scripts/build_magnetic_free_free_table.py`). At 250 MG and
 19 kK this raises the co-rotating absorption 1.2-1.5x within 10 % of the
 resonance and lowers it to 0.5-0.6x at 1.5 times the cyclotron wavelength.
-Born is not valid at these temperatures, so near the resonance the factor is
-uncertain by about 2.
+Born is not valid at these temperatures (Ry/kT ~ 8). Close-coupling and
+classical-trajectory checks at 250 MG and 19 kK put the co-rotating free-free
+near the resonance at 0.1-0.25 of this option and the other modes at 0.3-0.7 of
+Born: the Coulomb correction changes sign in the field. Treat the option as a
+first-Born upper side near the resonance.
 
 ## Opt-in polarized output
 
