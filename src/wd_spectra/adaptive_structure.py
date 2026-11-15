@@ -965,6 +965,7 @@ def solve_adaptive_lte_structure(
         )
         if reuse_base:
             assert cached_base_work is not None
+            stable_arithmetic_active = cached_base_work["stable_arithmetic_active"]
             current_temperature = cached_base_work["temperature"]
             current = cached_base_work["atmosphere"]
             absorption = cached_base_work["absorption"]
@@ -1029,64 +1030,76 @@ def solve_adaptive_lte_structure(
             planck = planck_lambda_angstrom(
                 wavelength[:, np.newaxis], current_temperature[np.newaxis, :]
             )
-            field_solver = (
-                cancellation_safe_field
-                if stable_arithmetic_active
-                else coherent_scattering_feautrier_field
-            )
-            field_options = {}
-            if mass_transfer:
-                field_solver = mass_field
-                field_options["column_mass"] = current.column_mass
-            source, field = field_solver(
-                optical_depth,
-                planck,
-                absorption,
-                scattering,
-                n_angle=n_angle,
-                **field_options,
-            )
-            (
-                source,
-                source_negative_clipped_count,
-                (source_maximum_negative_relative),
-            ) = _clip_roundoff_negative_scattering_source(source)
-            # Check closure with the independent fixed-source formal solver.
-            # Using the coupled J that constructed S would test an algebraic
-            # identity, not whether the returned source solves transfer.
-            closure_field = (
-                mass_field(
-                    optical_depth,
-                    source,
-                    extinction,
-                    np.zeros_like(extinction),
-                    column_mass=current.column_mass,
-                    n_angle=n_angle,
-                )[1]
-                if mass_transfer and np.any(scattering > 0.0)
-                else (
-                    (
-                        cancellation_safe_scalar_field
-                        if stable_arithmetic_active
-                        else feautrier_radiation_field
-                    )(optical_depth, source, n_angle=n_angle)
-                    if np.any(scattering > 0.0)
-                    else field
+            for closure_attempt in range(2):
+                field_solver = (
+                    cancellation_safe_field
+                    if stable_arithmetic_active
+                    else coherent_scattering_feautrier_field
                 )
-            )
-            source_equation = (
-                absorption * planck + scattering * closure_field.mean_intensity
-            ) / extinction
-            source_residual_floor = np.maximum(
-                np.max(planck, axis=1, keepdims=True) * 1.0e-12,
-                np.finfo(np.float64).tiny,
-            )
-            source_relative_residual = np.abs(
-                source_equation - source
-            ) / np.maximum(
-                np.maximum(np.abs(source_equation), np.abs(source)),
-                source_residual_floor,
-            )
+                field_options = {}
+                if mass_transfer:
+                    field_solver = mass_field
+                    field_options["column_mass"] = current.column_mass
+                source, field = field_solver(
+                    optical_depth,
+                    planck,
+                    absorption,
+                    scattering,
+                    n_angle=n_angle,
+                    **field_options,
+                )
+                (
+                    source,
+                    source_negative_clipped_count,
+                    (source_maximum_negative_relative),
+                ) = _clip_roundoff_negative_scattering_source(source)
+                # Check closure with the independent fixed-source formal solver.
+                # Using the coupled J that constructed S would test an algebraic
+                # identity, not whether the returned source solves transfer.
+                closure_field = (
+                    mass_field(
+                        optical_depth,
+                        source,
+                        extinction,
+                        np.zeros_like(extinction),
+                        column_mass=current.column_mass,
+                        n_angle=n_angle,
+                    )[1]
+                    if mass_transfer and np.any(scattering > 0.0)
+                    else (
+                        (
+                            cancellation_safe_scalar_field
+                            if stable_arithmetic_active
+                            else feautrier_radiation_field
+                        )(optical_depth, source, n_angle=n_angle)
+                        if np.any(scattering > 0.0)
+                        else field
+                    )
+                )
+                source_equation = (
+                    absorption * planck + scattering * closure_field.mean_intensity
+                ) / extinction
+                source_residual_floor = np.maximum(
+                    np.max(planck, axis=1, keepdims=True) * 1.0e-12,
+                    np.finfo(np.float64).tiny,
+                )
+                source_relative_residual = np.abs(
+                    source_equation - source
+                ) / np.maximum(
+                    np.maximum(np.abs(source_equation), np.abs(source)),
+                    source_residual_floor,
+                )
+                if (
+                    stable_arithmetic_active
+                    or mass_transfer
+                    or np.max(source_relative_residual) <= 1.0e-6
+                ):
+                    break
+                # Thin optical-depth cells can lose the unit diagonal during
+                # elimination in both the coupled and fixed-source sweeps.
+                # Recompute BOTH with difference-form elimination, preserving
+                # the grid, boundaries, equations and independent closure gate.
+                stable_arithmetic_active = True
             source_worst_flat_index = int(np.argmax(source_relative_residual))
             source_worst_wavelength_index, source_worst_depth_index = (
                 np.unravel_index(source_worst_flat_index, source.shape)
@@ -1608,6 +1621,7 @@ def solve_adaptive_lte_structure(
             cached_no_jacobian_solver_phase = solver_phase
             cached_no_jacobian_evaluation = evaluation
             cached_base_work = {
+                "stable_arithmetic_active": stable_arithmetic_active,
                 "temperature": current_temperature,
                 "atmosphere": current,
                 "absorption": absorption,
