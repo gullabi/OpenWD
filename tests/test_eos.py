@@ -513,3 +513,31 @@ def test_mixed_hydrogen_helium_thermodynamics_is_physical():
 def test_eos_rejects_nonphysical_inputs(temperature, pressure):
     with pytest.raises(ValueError):
         ideal_hydrogen_lte(temperature, pressure)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_molecular_pressure_roots_keep_converged_layers(reverse):
+    # Two layers from a cold 2500 K, log g=9 DA. One root converges
+    # before the other; batching them must not spoil pressure closure.
+    from wd_spectra.eos import _molecular_hydrogen_pressure_root
+
+    values = [
+        [3.8324330711372084e20, 5.209133566147359e21],
+        [4.317559849657968e-50, 1.0296450594180168e-22],
+        [21.67841319081083, 21880475055.39695],
+        [5526637476.821451, 1207442975292390.0],
+        [6.207146666503929e-25, 6.207146666503929e-25],
+        [91170790982.61948, 1.0676052164784168e16],
+        [4.345032134490535e16, 2.8925678995721544e18],
+        [52.351846167555934, 29290693163.13835],
+    ]
+    arrays = [np.array(v)[::-1] if reverse else np.array(v) for v in values]
+    result = _molecular_hydrogen_pressure_root(*arrays)
+    reconstructed = sum(result) + 0.5 * result[0] ** 2 * arrays[4]
+    np.testing.assert_allclose(reconstructed, arrays[0], rtol=2.0e-13)
+    for layer in range(2):
+        single = _molecular_hydrogen_pressure_root(
+            *(value[layer] for value in arrays)
+        )
+        for batched, scalar in zip(result, single):
+            np.testing.assert_allclose(batched[layer], scalar, rtol=2.0e-13)

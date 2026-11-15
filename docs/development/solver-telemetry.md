@@ -54,6 +54,12 @@ the worst residual (depth index, Rosseland depth, temperature, convective-flux
 fraction) refers to the last segment. A conditioning segment can use an
 approximate residual; its values are not physical convergence.
 
+Formal-flux continuation requires an accepted update in the preceding
+segment. The iteration count also includes rejected Newton attempts, so a
+positive count alone does not justify another restart. A segment that accepts
+no updates passes its unresolved state to local-energy completion when that
+phase is enabled; it does not earn a convergence certificate.
+
 `radiative_equilibrium_iterations` includes the thermal sweeps and the static
 iterations. `thermal_sweeps_including_domain_adaptation` and
 `radiative_equilibrium_iterations_including_domain_adaptation` include all
