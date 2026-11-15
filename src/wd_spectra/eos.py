@@ -604,10 +604,11 @@ def _molecular_hydrogen_pressure_root(
         )
         log_upper = np.where(residual > 0.0, log_atom, log_upper)
         log_lower = np.where(residual > 0.0, log_lower, log_atom)
-        if np.all(
+        converged = (
             np.abs(residual) / np.maximum(pressure_density, 1.0)
             < 2.0e-13
-        ):
+        )
+        if np.all(converged):
             break
 
         positive_log_derivative = (
@@ -644,7 +645,13 @@ def _molecular_hydrogen_pressure_root(
             & (newton > log_lower)
             & (newton < log_upper)
         )
-        log_atom = np.where(usable, newton, midpoint)
+        # A converged component can round its Newton step onto a bracket
+        # endpoint. Do not replace that root by the midpoint while other
+        # components are still iterating: it spoils pressure accuracy and
+        # introduces noise into numerical thermodynamic derivatives.
+        log_atom = np.where(
+            converged, log_atom, np.where(usable, newton, midpoint)
+        )
 
     atom = np.exp(log_atom)
     molecule = np.exp(
