@@ -2348,7 +2348,12 @@ def solve_adaptive_lte_structure(
                 break
             if result.converged:
                 break
-            if result.iterations == 0:
+            # iterations counts rejected Newton attempts as well as accepted
+            # updates. If no update was accepted, another identical restart
+            # starts from the same state with the same fresh tangent and trust
+            # radius. Leave the unresolved state for local energy completion
+            # below (when requested), rather than repeating that solve.
+            if not result.history:
                 break
             solver_iteration_offset += result.iterations
             formal_flux_continuations += 1

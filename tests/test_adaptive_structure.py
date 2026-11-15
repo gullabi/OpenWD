@@ -527,3 +527,53 @@ def test_scattering_source_rejects_material_negative_values():
         _clip_roundoff_negative_scattering_source(
             np.asarray([[1.0, -2.0e-8]])
         )
+
+
+@pytest.mark.parametrize("attempts", [1, 3])
+@pytest.mark.parametrize("accept_first", [False, True])
+def test_formal_continuation_does_not_repeat_a_solve_without_accepted_steps(
+    monkeypatch, attempts, accept_first
+):
+    import wd_spectra.adaptive_structure as adaptive
+
+    n = 3
+    mass = np.geomspace(1e-4, 100., n)
+    seed = Atmosphere(
+        effective_temperature=10000., logg=8., rosseland_optical_depth=mass,
+        column_mass=mass, gas_pressure=1e8*mass, temperature=np.full(n, 5000.),
+        mass_density=np.ones(n), neutral_h_density=np.zeros(n),
+        proton_density=np.zeros(n), electron_density=np.ones(n), metadata={})
+    original = adaptive.solve_trust_region_newton
+    segments = []
+
+    def reject_every_trial(initial, evaluate, **options):
+        accept = accept_first and not segments
+        options.update(acceptance_test=lambda old, new: accept,
+                       finite_difference_fallback_step=None,
+                       maximum_iterations=1 if accept else attempts)
+        result = original(initial, evaluate, **options)
+        assert result.iterations > 0  # Counts rejected attempts too.
+        assert bool(result.history) == accept
+        segments.append(result)
+        return result
+
+    monkeypatch.setattr(adaptive, "solve_trust_region_newton", reject_every_trial)
+    atmosphere = solve_adaptive_lte_structure(
+        seed, np.array([1000., 2000., 4000., 8000.]),
+        with_temperature=lambda t: replace(seed, temperature=t),
+        true_absorption=lambda a: np.ones((4, n)),
+        scattering_opacity=lambda a: np.zeros((4, n)),
+        rosseland_opacity=lambda a: np.ones(n), thermodynamics=lambda a: None,
+        mixing_length_alpha=None, max_iterations=attempts,
+        temperature_tolerance=1e-4, flux_tolerance=1e-3, n_angle=2,
+        initial_temperature_was_supplied=False,
+        use_initial_bolometric_rescaling=False,
+        enforce_local_energy_balance=False, maximum_formal_flux_continuations=2,
+    )
+    assert len(segments) == 1 + int(accept_first)
+    assert not atmosphere.metadata["equilibrium_certificate"]["verified"]
+    assert atmosphere.metadata["formal_flux_continuations"] == int(accept_first)
+    # The no-progress segment retains the previous physical atmosphere.
+    np.testing.assert_array_equal(
+        atmosphere.temperature, segments[0].evaluation.payload["atmosphere"].temperature
+    )
