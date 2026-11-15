@@ -297,6 +297,7 @@ def solve_trust_region_newton(
         [FloatArray, NonlinearEvaluation[Payload]], NonlinearCorrection[Payload] | None
     ] | None = None,
     converge_when_proposal_limited: bool = False,
+    require_unrestricted_step: bool = False,
 ) -> NonlinearResult[Payload]:
     """Solve a square nonlinear system with automatic globalization.
 
@@ -351,7 +352,14 @@ def solve_trust_region_newton(
     It requires fresh analytic tangents (no Broyden updates). Screening can
     only reject: every accepted step still requires a physical evaluation.
     Default False preserves the existing rejection/restart policy.
+    ``require_unrestricted_step`` additionally requires the proposal before
+    trust clipping and backtracking to meet ``step_tolerance``. This prevents
+    final physical solves from stopping merely because damping made a large
+    correction small. The default preserves provisional-phase behavior.
     """
+
+    if not isinstance(require_unrestricted_step, bool):
+        raise ValueError("require_unrestricted_step must be boolean")
 
     state = np.asarray(initial_state, dtype=np.float64).copy()
     if state.ndim != 1 or state.size < 2 or np.any(~np.isfinite(state)):
@@ -555,6 +563,7 @@ def solve_trust_region_newton(
     assert evaluation.jacobian is not None
     jacobian = evaluation.jacobian.copy()
     last_step_maximum = np.inf
+    last_unrestricted_step_maximum = np.inf
     last_proposal_limited = False
     numerical_fallback_used_at_state = False
     rejected_secant_repairs_at_state = 0
@@ -566,6 +575,8 @@ def solve_trust_region_newton(
         return bool(
             np.max(np.abs(evaluation.residual)) < residual_tolerance
             and last_step_maximum < step_tolerance
+            and (not require_unrestricted_step
+                 or last_unrestricted_step_maximum < step_tolerance)
             # Preserve the caller's explicit limited-proposal certificate
             # policy at the iteration cap as well as between iterations.
             and (not last_proposal_limited or converge_when_proposal_limited)
@@ -745,6 +756,7 @@ def solve_trust_region_newton(
                             jacobian = evaluation.jacobian.copy()
                             jacobian_refreshes += 1
                             last_step_maximum = np.inf
+                            last_unrestricted_step_maximum = np.inf
                             last_proposal_limited = True
                             numerical_fallback_used_at_state = False
                             rejected_secant_repairs_at_state = 0
@@ -999,6 +1011,7 @@ def solve_trust_region_newton(
         accepted_step = state - old_state
         correction_pending = iteration_correction is not None
         last_proposal_limited = proposal_limited
+        last_unrestricted_step_maximum = step_maximum
         last_step_maximum = (
             float(np.max(np.abs(accepted_step)))
             if step_measure is None

@@ -558,3 +558,46 @@ def test_telemetry_records_bounded_trust_region_collapse():
     assert len(diagnostics.rejected_trial_worst_residual_indices) == (
         diagnostics.rejected_trial_evaluations
     )
+
+
+def test_unrestricted_step_policy_rejects_damped_false_stationarity():
+    def evaluate(state, need_jacobian):
+        return NonlinearEvaluation(state-1e-4,
+            0.01*np.eye(2) if need_jacobian else None, None)
+    options = dict(maximum_iterations=1, allow_initial_convergence=False,
+                   step_tolerance=3e-4, residual_tolerance=3e-3)
+    legacy = solve_trust_region_newton(np.zeros(2), evaluate, **options)
+    strict = solve_trust_region_newton(np.zeros(2), evaluate,
+                                    require_unrestricted_step=True, **options)
+    assert legacy.converged
+    assert not strict.converged
+    np.testing.assert_array_equal(strict.state, legacy.state)
+    record = strict.history[-1]
+    assert record.maximum_step < options['step_tolerance']
+    assert record.unrestricted_maximum_step > options['step_tolerance']
+    assert record.line_search_factor < 1
+
+
+def test_unrestricted_step_policy_preserves_genuine_stationarity():
+    def evaluate(state, need_jacobian):
+        return NonlinearEvaluation(state-1e-4,
+            np.eye(2) if need_jacobian else None, None)
+    result = solve_trust_region_newton(np.zeros(2), evaluate,
+        allow_initial_convergence=False, require_unrestricted_step=True,
+        step_tolerance=3e-4, residual_tolerance=3e-3)
+    assert result.converged
+    assert result.history[-1].unrestricted_maximum_step < 3e-4
+
+
+def test_unrestricted_step_policy_continues_after_damped_small_update():
+    def evaluate(state, need_jacobian):
+        return NonlinearEvaluation(state-1e-4,
+            0.01*np.eye(2) if need_jacobian else None, None)
+    result = solve_trust_region_newton(np.zeros(2), evaluate,
+        maximum_iterations=4, allow_initial_convergence=False,
+        require_unrestricted_step=True, step_tolerance=3e-4,
+        residual_tolerance=3e-3)
+    assert result.converged
+    assert len(result.history) >= 2
+    assert result.history[0].unrestricted_maximum_step > 3e-4
+    assert result.history[-1].unrestricted_maximum_step < 3e-4

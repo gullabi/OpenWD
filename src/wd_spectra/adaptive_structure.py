@@ -2151,6 +2151,7 @@ def solve_adaptive_lte_structure(
         solver_phase = "local-energy-completion"
         nonlinear_options.update(
             allow_initial_convergence=False,
+            require_unrestricted_step=True,
             linear_regularization=0.0,
             jacobian_refresh_interval=1,
             # Frozen row weights are renewed with each tangent. Secants
@@ -2434,6 +2435,7 @@ def solve_adaptive_lte_structure(
         energy_options = dict(
             nonlinear_options,
             allow_initial_convergence=False,
+            require_unrestricted_step=True,
             linear_regularization=0.0,
         )
         from ._thermal_conditioning import (
