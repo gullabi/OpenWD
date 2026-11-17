@@ -31,7 +31,7 @@ run = run_model(
 spectrum = run.spectrum  # vacuum wavelength (Å), surface F_lambda, line-free continuum
 ```
 
-This model takes about 10–20 minutes on one core. The default spectrum covers
+This model takes tens of minutes on one core. The default spectrum covers
 3000–9200 Å in 0.05 Å steps. The continuum column uses the same NLTE
 populations with all lines removed. `run.convergence_verified` is `True` only
 if the LTE structure is certified and the NLTE populations converge.
@@ -46,8 +46,15 @@ The model contains no metals.
 | `quality` | `"standard"` | `"standard"` (40 depths) or `"production"` (80 depths). |
 | `hydrogen_levels` | 16 | Explicit H I levels in the NLTE atom. |
 | `helium_i_atom` | `"14"` | He I model atom: 14 or 24 terms. |
-| `population_maximum_iterations` | 600 | Limit on the NLTE population iterations. |
+| `population_maximum_iterations` | 600 | Total population-evaluation budget across initialization and full NLTE. |
 | `population_tolerance` | 1e-4 | Largest relative population change at convergence. |
+
+The cold population solve approaches the full NLTE equations through staged
+initialization from LTE. Intermediate stages cannot certify a model. Final
+acceptance uses the original NLTE population residual and the requested
+tolerance; initialization shares the same total iteration budget. The model
+metadata records `nlte_population_continuation_stages` and the total
+`nlte_population_iterations`.
 
 ## Add trace metals
 
