@@ -85,8 +85,10 @@ def solve_sdb_populations(model, atmosphere):
                 proposal = log_old + 0.3 * (log_new - log_old)
             current = hn.with_departures(base, np.exp(proposal))
         stages.append({'fraction': fraction, 'iterations': stage_iterations, 'stage_converged': stage_converged, 'original_population_defect': change, 'homotopy_defect': homotopy})
-        if not stage_converged or converged:
+        if not stage_converged or converged or iteration == model.population_maximum_iterations:
             break
     current = hn.population_status(current, converged, iteration, change)
-    current = replace(current, helium=replace(current.helium, metadata={**current.helium.metadata, 'population_continuation_stages': stages}))
-    return current
+    # The last rate evaluation used this state's radiation field. Its
+    # metadata describes the coupled transitions, unlike the LTE seed's.
+    metadata = {**candidate.helium.metadata, 'population_continuation_stages': stages}
+    return replace(current, helium=replace(current.helium, metadata=metadata))

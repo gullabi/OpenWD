@@ -17,6 +17,17 @@ def test_converged_initialization_is_not_full_nlte_convergence(sdb, monkeypatch)
     assert result.helium.metadata['population_continuation_stages'][0]['stage_converged']
     assert not result.converged
 
+    # If the last available evaluation completes initialization, the next
+    # stage has no evaluation and must not appear in the diagnostics.
+    monkeypatch.setattr(continuation, 'FRACTIONS', (0.5, 1.0))
+    budget = result.iterations
+    bounded = solve_sdb_populations(
+        replace(model, population_maximum_iterations=budget), atmosphere)
+    assert not bounded.converged
+    assert bounded.iterations == budget
+    assert bounded.helium.metadata['population_continuation_stages'] == (
+        result.helium.metadata['population_continuation_stages'])
+
 
 @pytest.mark.parametrize('budget', [1, 3])
 def test_incomplete_initialization_does_not_certify_populations(sdb, budget):
@@ -42,6 +53,8 @@ def test_continuation_solution_passes_original_population_solver(sdb):
         atmosphere, result, accelerated_lambda=True)
     assert checked.converged
     _, wave, _, mean, fields = _population_grid_and_fields(model, atmosphere, result)
+    assert len(fields[1]) > 0
+    assert result.helium.metadata['helium_ii_radiation_coupled_transition_count'] == len(fields[1])
     plain = model._rate_state(atmosphere, wave, mean, *fields)
     old, reference = population_arrays(result)
     new, _ = population_arrays(plain)
