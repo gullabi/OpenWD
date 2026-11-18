@@ -35,7 +35,7 @@ def _continuum_response_integrals(mean_response, boltzmann, weights):
 
 
 class PreparedHeliumRates:
-    def __init__(self, model, atmosphere, wave, groups):
+    def __init__(self, model, atmosphere, wave, groups, *, prepare_line_stages=False):
         self.model,self.atmosphere,self.wave=model,atmosphere,wave
         self.kwargs=dict(maximum_helium_ii_level=model.maximum_helium_ii_level,
             helium_i_collision_data=model.helium_i_collision_data,
@@ -48,15 +48,23 @@ class PreparedHeliumRates:
         self.ion,self.continuum,self.ion_occupation=he._reference_populations(atmosphere,model.maximum_helium_ii_level)
         zero=np.zeros(atmosphere.n_depth);one=np.ones(atmosphere.n_depth)
         zero_mean=np.zeros((len(wave),atmosphere.n_depth))
-        self.base=he.solve_coupled_helium_statistical_equilibrium(atmosphere,model.collision_data,
+        base_kwargs=dict(
             **self.kwargs,neutral_line_mean_intensity_nu={k:zero for k in groups[0]},
             helium_ii_line_mean_intensity_nu={k:zero for k in groups[1]},
             neutral_continuum_wavelength_angstrom=wave,neutral_continuum_mean_intensity_lambda=zero_mean,
             helium_ii_continuum_wavelength_angstrom=wave,helium_ii_continuum_mean_intensity_lambda=zero_mean,
             _return_rate_matrix=True)
+        self.base=he.solve_coupled_helium_statistical_equilibrium(
+            atmosphere,model.collision_data,**base_kwargs)
+        if prepare_line_stages:
+            # Assemble without the coupled spontaneous rates from the start.
+            # Subtracting them afterward can erase a much smaller collision rate.
+            self.base_without_coupled_lines=he.solve_coupled_helium_statistical_equilibrium(
+                atmosphere,model.collision_data,_line_strength=0.0,**base_kwargs)
         self.line_updates=[]
+        self.line_spontaneous=[]
         for group_number,group in enumerate(groups[:2]):
-            keys=[];lower_indices=[];upper_indices=[];upward=[];downward=[]
+            keys=[];lower_indices=[];upper_indices=[];upward=[];downward=[];spontaneous=[]
             for lower,upper in group:
                 if group_number==0:
                     f=self.atom.oscillator_strength.get((lower,upper),0.)
@@ -74,17 +82,29 @@ class PreparedHeliumRates:
                     lo,hi=n_neutral+lower-1,n_neutral+upper-1
                 keys.append((lower,upper));lower_indices.append(lo);upper_indices.append(hi)
                 upward.append(up);downward.append(spont*LIGHT_SPEED**2/(2*PLANCK*nu**3))
+                spontaneous.append(spont)
             self.line_updates.append((keys,np.array(lower_indices),np.array(upper_indices),np.array(upward).T,np.array(downward).T))
+            self.line_spontaneous.append(np.array(spontaneous).T)
         self.neutral_zero=he._neutral_helium_continuum_radiative_rates(atmosphere,self.neutral,self.total_ion,wave,zero_mean,model.helium_i_atom)[1]
         self.ion_zero=he._continuum_radiative_rates(atmosphere,self.ion,self.continuum,wave,zero_mean)[1]
         self.ground_fraction=self.ion[:,0]/np.maximum(self.total_ion,np.finfo(float).tiny)
 
-    def rate_matrix(self, mean, neutral_fields, ion_fields):
-        rate=self.base.copy()
-        for fields,(keys,lo,hi,up,down) in zip((neutral_fields,ion_fields),self.line_updates):
-            intensity=np.column_stack([fields[k] for k in keys])
-            rate[:,lo,hi]+=up*intensity
-            rate[:,hi,lo]+=down*intensity
+    def rate_matrix(self, mean, neutral_fields, ion_fields, *, line_strength=1.0):
+        base = self.base if line_strength == 1.0 else self.base_without_coupled_lines
+        rate = base.copy()
+        if line_strength > 0.0:
+            for fields, (keys, lo, hi, up, down), spontaneous in zip(
+                (neutral_fields, ion_fields), self.line_updates, self.line_spontaneous
+            ):
+                if not keys:
+                    continue
+                intensity = np.column_stack([fields[key] for key in keys])
+                if line_strength == 1.0:
+                    rate[:, lo, hi] += up * intensity
+                    rate[:, hi, lo] += down * intensity
+                else:
+                    rate[:, lo, hi] += line_strength * (up * intensity)
+                    rate[:, hi, lo] += line_strength * (spontaneous + down * intensity)
         m=self.n_neutral
         up,down=he._neutral_helium_continuum_radiative_rates(self.atmosphere,self.neutral,self.total_ion,self.wave,mean,self.model.helium_i_atom)
         rate[:,:m,m]+=up

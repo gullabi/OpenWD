@@ -32,11 +32,16 @@ and does not converge.
 
 `compute_sdb` sets these options. Their defaults elsewhere do not change.
 
-- `HotNLTEModel.solve_populations(..., accelerated_lambda=True)`: multilevel
-  accelerated lambda iteration (`_hot_mali.py`) in the Rybicki & Hummer
-  (1991) form. It changes the path, not the solution. Without it, the
-  fixed-point iteration through the optically thick H/He lines seems to
-  converge but stays far from the solution.
+- `solve_sdb_populations` starts with the continuum transfer and then scales
+  the explicitly coupled bound-bound radiative rates and the line transfer
+  coefficients together. Collisions, bound-free processes, and local Planck
+  rates for transitions without explicit line transfer are active from the
+  first stage. Each stage with lines uses Rybicki & Hummer (1991) multilevel
+  accelerated lambda iteration (`_hot_mali.py`). At full line strength the
+  original statistical equilibrium and population convergence test apply.
+  Each initialization stage hands off its lowest-residual evaluated state
+  after meeting the tolerance or reaching its stage limit. The shared budget
+  reserves an evaluation at full line strength.
 - `HotNLTEModel.helium_conservation_row="dominant"` (default `"last"`):
   particle conservation replaces the equation of the most populous helium
   state, not the He III equation. In cool sdB surface layers

@@ -130,3 +130,4 @@ Paper range: 20,000–40,000 K, log g 5–6. See the [sdB guide](models/sdB.md).
 | Points | Settings | Evidence |
 | --- | --- | --- |
 | HD 4539: 23200/5.20, log N(He)/N(H) = −2.27 | standard | Canary `sdb-hd4539` |
+| 30000/5.40, log N(He)/N(H) = 0 | production, H I 16, He I 14 | Canary `sdb-30000-he0` |

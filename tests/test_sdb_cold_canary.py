@@ -1,4 +1,4 @@
-"""A fresh public sdB calculation against the separate research-driver recipe.
+"""Cold public sdB convergence and an independent research-spectrum control.
 
 The control contains only a spectrum; it is loaded after the cold calculation
 and never supplies a structure, population or solver starting state.
@@ -55,3 +55,26 @@ def test_hd4539_public_cold_start_and_research_spectrum(tmp_path):
         # in absolute flux to 0.1%, without normalization or a fitted scale.
         np.testing.assert_allclose(spectrum.surface_flux_lambda, reference['flux'],
                                    rtol=1e-3, atol=0)
+
+
+@pytest.mark.canary
+def test_equal_hydrogen_and_helium_sdb_converges_from_cold(tmp_path):
+    # The LTE structure converged in the original run, but the He II ground
+    # population stalled near the surface at a residual of 0.0147.
+    config = SdBConfig(effective_temperature=30_000, logg=5.4,
+                       log_helium_to_hydrogen=0, quality='production')
+    output = tmp_path / 'sdb-30000-he0-cold'
+    run = run_model(config, output, require_convergence=True)
+    assert run.convergence_verified
+    request = json.loads((output / 'model-run.json').read_text())
+    assert request['cold_start'] and request['initial_checkpoint'] is None
+    saved = json.loads((output / 'metadata.json').read_text())
+    assert saved['atmosphere_metadata']['equilibrium_certificate']['verified']
+    metadata = saved['model_metadata']
+    assert metadata['nlte_population_change'] < config.population_tolerance
+    stages = metadata['nlte_population_continuation_stages']
+    assert stages[-1]['line_strength'] == 1.0 and stages[-1]['stage_converged']
+    assert sum(stage['iterations'] for stage in stages) == metadata['nlte_population_iterations']
+    assert metadata['nlte_population_iterations'] <= config.population_maximum_iterations
+    for flux in (run.spectrum.surface_flux_lambda, run.spectrum.continuum_flux_lambda):
+        assert flux.size == 124000 and np.isfinite(flux).all() and np.all(flux > 0)

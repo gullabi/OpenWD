@@ -579,6 +579,7 @@ def solve_coupled_helium_statistical_equilibrium(
     helium_ii_continuum_mean_intensity_lambda: ArrayLike | None = None,
     helium_i_collision_data: TlustyHeliumCollisionData | None = None,
     hydrogenic_collision_model: HydrogenicHeliumCollisionModel = "ccc-scaled",
+    _line_strength: float = 1.0,
     _rate_matrix=None,
     _return_rate_matrix=False,
     helium_i_atom: HeliumIAtom | None = None,
@@ -671,6 +672,9 @@ def solve_coupled_helium_statistical_equilibrium(
                 else:
                     radiative_up = np.zeros(n_depth)
                     radiative_down = np.zeros(n_depth)
+                if supplied is not None and _line_strength != 1.0:
+                    radiative_up *= _line_strength
+                    radiative_down *= _line_strength
                 rate_coefficient = (
                     fitted_neutral_collision_rate[:, lower, upper]
                     if fitted_neutral_collision_rate is not None
@@ -714,6 +718,9 @@ def solve_coupled_helium_statistical_equilibrium(
                     helium_ii_occupation[:, upper - 1],
                     mean_intensity,
                 )
+                if supplied is not None and _line_strength != 1.0:
+                    radiative_up *= _line_strength
+                    radiative_down *= _line_strength
                 collisional_up = (
                     atmosphere.electron_density
                     * helium_ii_excitation_collision_rate_coefficient(
