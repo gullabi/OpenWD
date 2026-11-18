@@ -12,7 +12,7 @@ calculation, so a Planck radiation field recovers LTE exactly.
 from __future__ import annotations
 from ._nlte_radiative_integrals import continuum_integrals
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal, Mapping
 
@@ -246,7 +246,20 @@ class NeutralHeliumNLTEState:
     converged: bool
     maximum_relative_population_change: float
     metadata: dict[str, object]
-    helium_i_atom: HeliumIAtom | None = None  # None: TLUSTY 14-term atom
+    # The live atom contains photoionization callables; export its identity,
+    # not executable callbacks. None selects the built-in TLUSTY 14-term atom.
+    helium_i_atom: HeliumIAtom | None = field(default=None, metadata={"serialize": False})
+
+    def __post_init__(self):
+        if self.helium_i_atom is not None:
+            object.__setattr__(self, "metadata", {
+                **self.metadata,
+                "helium_i_atom_identity": {
+                    "name": self.helium_i_atom.name,
+                    "source": self.helium_i_atom.source,
+                    "term_label": self.helium_i_atom.label,
+                },
+            })
 
 
 @dataclass(frozen=True)
@@ -266,7 +279,20 @@ class CoupledHeliumNLTEState:
     converged: bool
     maximum_relative_population_change: float
     metadata: dict[str, object]
-    helium_i_atom: HeliumIAtom | None = None  # None: TLUSTY 14-term atom
+    # The live atom contains photoionization callables; export its identity,
+    # not executable callbacks. None selects the built-in TLUSTY 14-term atom.
+    helium_i_atom: HeliumIAtom | None = field(default=None, metadata={"serialize": False})
+
+    def __post_init__(self):
+        if self.helium_i_atom is not None:
+            object.__setattr__(self, "metadata", {
+                **self.metadata,
+                "helium_i_atom_identity": {
+                    "name": self.helium_i_atom.name,
+                    "source": self.helium_i_atom.source,
+                    "term_label": self.helium_i_atom.label,
+                },
+            })
 
 
 def helium_ii_shell_transition(lower_level: int, upper_level: int) -> HydrogenLine:

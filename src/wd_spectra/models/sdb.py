@@ -128,8 +128,8 @@ def compute_sdb(config=SdBConfig(), wavelength=None, *, data=None, initial_atmos
     template = replace(template, column_mass=lte.column_mass, gas_pressure=lte.gas_pressure,
                        rosseland_optical_depth=lte.rosseland_optical_depth)
     atmosphere = model.rebuild_atmosphere(template, lte.temperature)
-    populations = model.solve_populations(atmosphere, model._rate_state(atmosphere),
-                                          accelerated_lambda=True)
+    from .._sdb_population_continuation import solve_sdb_populations
+    populations = solve_sdb_populations(model, atmosphere)
     flux = _emergent_flux(model, atmosphere, populations, wave, lines=True)
     continuum = _emergent_flux(model, atmosphere, populations, wave, lines=False)
     status = ('converged' if structure_status == 'converged' and populations.converged
@@ -158,6 +158,7 @@ def compute_sdb(config=SdBConfig(), wavelength=None, *, data=None, initial_atmos
         'structure_model_request_fingerprint': structure.metadata.get('model_request_fingerprint'),
         'nlte_populations_converged': bool(populations.converged),
         'nlte_population_iterations': int(populations.iterations),
+        'nlte_population_continuation_stages': populations.helium.metadata['population_continuation_stages'],
         'nlte_population_change': float(populations.maximum_relative_population_change),
         'hydrogen_levels': config.hydrogen_levels, 'helium_i_atom': config.helium_i_atom,
         'accelerated_lambda': True, 'helium_conservation_row': 'dominant',
