@@ -826,6 +826,7 @@ def solve_multilevel_hydrogen_statistical_equilibrium(
     continuum_mean_intensity_lambda: ArrayLike | None = None,
     collision_rate_multiplier: float = 1.0,
     fix_continuum_departure: bool = False,
+    _line_strength: float = 1.0,
     _return_rate_matrix: bool = False,
     _rate_matrix_transform=None,
 ) -> MultilevelHydrogenNLTEState:
@@ -892,6 +893,9 @@ def solve_multilevel_hydrogen_statistical_equilibrium(
                 occupation[:, upper - 1],
                 mean_intensity,
             )
+            if field is not None and _line_strength != 1.0:
+                radiative_up *= _line_strength
+                radiative_down *= _line_strength
             collisional_up = (
                 collision_rate_multiplier
                 * electron_density
@@ -944,6 +948,9 @@ def solve_multilevel_hydrogen_statistical_equilibrium(
                     physical_distribution.occupation_probability[:, upper - 1],
                     mean_intensity,
                 )
+                if field is not None and _line_strength != 1.0:
+                    component_up *= _line_strength
+                    component_down *= _line_strength
                 radiative_up_sum += component_up
                 radiative_down_sum += component_down * np.divide(
                     physical_distribution.population_density[:, upper - 1],

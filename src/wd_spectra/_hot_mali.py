@@ -118,7 +118,7 @@ def line_operator(problems, wave, total_extinction, diagonal, departure_lower, d
     return np.clip(np.average(values, axis=0, weights=weights), 0.0, _MAXIMUM_OPERATOR)
 
 
-def precondition(rate, couplings, fields, operators, populations):
+def precondition(rate, couplings, fields, operators, populations, *, line_strength=1.0):
     """Apply the Rybicki-Hummer substitution to the line rates of ``rate`` (in place)."""
     epsilon = 16.0 * np.finfo(float).eps
     for index, key in enumerate(couplings.keys):
@@ -140,17 +140,18 @@ def precondition(rate, couplings, fields, operators, populations):
             np.divide(spontaneous + stimulated * mean, spontaneous + stimulated * source,
                       out=np.zeros_like(mean), where=valid))
         psi = np.where(valid, np.minimum(operators[key], limit), 0.0) * (1.0 - epsilon)
-        rate[:, lo, hi] -= absorption * psi * source
-        rate[:, hi, lo] -= psi * (spontaneous + stimulated * source)
+        rate[:, lo, hi] -= line_strength * (absorption * psi * source)
+        rate[:, hi, lo] -= line_strength * (psi * (spontaneous + stimulated * source))
     return rate
 
 
 class HotMALI:
     """Preconditioned rate states for one fixed atmosphere and line grid."""
 
-    def __init__(self, model, atmosphere, wave, groups):
+    def __init__(self, model, atmosphere, wave, groups, *, prepare_line_stages=False):
         self.model, self.atmosphere, self.wave, self.groups = model, atmosphere, wave, groups
-        self.prepared = PreparedHeliumRates(model, atmosphere, wave, groups)
+        self.prepared = PreparedHeliumRates(model, atmosphere, wave, groups,
+                                           prepare_line_stages=prepare_line_stages)
         self.helium = helium_couplings(self.prepared)
         self.hydrogen = (None if model.log_hydrogen_to_helium is None or not groups[2] else
                          hydrogen_couplings(atmosphere, tuple(groups[2]), model.maximum_hydrogen_level))
@@ -164,36 +165,41 @@ class HotMALI:
                                            couplings.frequency[index], self.atmosphere.temperature)
         return operators
 
-    def state(self, current, coefficients, mean, fields):
+    def state(self, current, coefficients, mean, fields, *, line_strength=1.0):
         """SE solution of the preconditioned rates for J computed from ``current``."""
-        diagonal = diagonal_lambda_operator(self.atmosphere, coefficients, self.model.n_angle)
-        total = coefficients.true_absorption + coefficients.scattering
-        actual, reference = population_arrays(current)
-        departure = actual / reference
-        nhe = self.helium_states
-        rate = self.prepared.rate_matrix(mean, fields[0], fields[1])
+        rate = self.prepared.rate_matrix(mean, fields[0], fields[1], line_strength=line_strength)
         self.last_operators = {}
-        for group_number, couplings in enumerate(self.helium):
-            operators = self._operators(couplings, self.groups[group_number], self.wave, total, diagonal,
-                                        departure[:, :nhe])
-            self.last_operators.update({(group_number, k): v for k, v in operators.items()})
-            precondition(rate, couplings, fields[group_number], operators, actual[:, :nhe])
+        transform = None
+        if line_strength > 0.0:
+            diagonal = diagonal_lambda_operator(self.atmosphere, coefficients, self.model.n_angle)
+            total = coefficients.true_absorption + coefficients.scattering
+            actual, reference = population_arrays(current)
+            # The operator apportions extinction using the same spectral line
+            # strength as the transfer evaluation at this continuation stage.
+            departure = line_strength * (actual / reference)
+            nhe = self.helium_states
+
+            def apply(matrix, group, couplings, section):
+                operators = self._operators(couplings, self.groups[group], self.wave, total,
+                                            diagonal, departure[:, section])
+                self.last_operators.update({(group, k): v for k, v in operators.items()})
+                return precondition(matrix, couplings, fields[group], operators, actual[:, section],
+                                    line_strength=line_strength)
+
+            for group, couplings in enumerate(self.helium):
+                apply(rate, group, couplings, slice(0, nhe))
+            if self.hydrogen is not None:
+                def transform(matrix):
+                    return apply(matrix, 2, self.hydrogen, slice(nhe, None))
         helium = he.solve_coupled_helium_statistical_equilibrium(
             self.atmosphere, self.model.collision_data, **self.prepared.kwargs,
             neutral_line_mean_intensity_nu=fields[0], helium_ii_line_mean_intensity_nu=fields[1],
             _rate_matrix=rate)
         hydrogen_state = None
         if self.model.log_hydrogen_to_helium is not None:
-            transform = None
-            if self.hydrogen is not None:
-                operators = self._operators(self.hydrogen, self.groups[2], self.wave, total, diagonal,
-                                            departure[:, nhe:])
-                self.last_operators.update({(2, k): v for k, v in operators.items()})
-
-                def transform(matrix):
-                    return precondition(matrix, self.hydrogen, fields[2], operators, actual[:, nhe:])
             hydrogen_state = hydrogen.solve_multilevel_hydrogen_statistical_equilibrium(
                 self.atmosphere, self.model.collision_data, maximum_level=self.model.maximum_hydrogen_level,
                 line_mean_intensity_nu=fields[2], continuum_wavelength_angstrom=self.wave,
-                continuum_mean_intensity_lambda=mean, _rate_matrix_transform=transform)
+                continuum_mean_intensity_lambda=mean, _line_strength=line_strength,
+                _rate_matrix_transform=transform)
         return HotPopulationState(helium, hydrogen_state)

@@ -49,11 +49,13 @@ The model contains no metals.
 | `population_maximum_iterations` | 600 | Total population-evaluation budget across initialization and full NLTE. |
 | `population_tolerance` | 1e-4 | Largest relative population change at convergence. |
 
-The cold population solve approaches the full NLTE equations through staged
-initialization from LTE. Intermediate stages cannot certify a model. Final
-acceptance uses the original NLTE population residual and the requested
-tolerance; initialization shares the same total iteration budget. The model
-metadata records `nlte_population_continuation_stages` and the total
+The cold population solve first lets ionization adjust to the continuum
+radiation field. It then restores spectral-line extinction, emissivity, and
+radiative rates together in stages. The model certifies the populations only
+at full line strength, using the requested tolerance and the original NLTE
+population residual. The stages share the total iteration budget. The model
+metadata records each stage's line strength, work, and residual in
+`nlte_population_continuation_stages` and the total work in
 `nlte_population_iterations`.
 
 ## Add trace metals

@@ -52,6 +52,7 @@ COLD_TESTS = {
     "do-50000": "tests/test_hot_cold_canary.py::test_hot_public_model_converges_from_cold[do-50000-standard]",
     "dao-60000": "tests/test_hot_cold_canary.py::test_hot_public_model_converges_from_cold[dao-60000-standard]",
     "sdb-hd4539": "tests/test_sdb_cold_canary.py::test_hd4539_public_cold_start_and_research_spectrum",
+    "sdb-30000-he0": "tests/test_sdb_cold_canary.py::test_equal_hydrogen_and_helium_sdb_converges_from_cold",
     **{
         case: f"tests/test_released_family_canaries.py::test_released_family_cold_start[{case}]"
         for case in ("dz-pg1225", "pg1159-pg1424", "d6-j1637")
