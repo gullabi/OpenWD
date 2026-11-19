@@ -89,7 +89,15 @@ On the frozen `dab-9000` structure the new spectrum is within 0.2-1.6% of the
 Montreal 9000 K, log g 8, log N(H)/N(He) = -2 model from 2000 A to 1 micron,
 with no step at 5063 A. [Provenance](heh_mixed_heminus_2026_11_19.json).
 
-`stark_area_2026_11_11/cold/`, `cool_h_chemistry_2026_11_10/cold/`,
+For the 10,000 K pure-helium DB cold start, the new He⁻ opacity moves the
+hydrostatic pressure and column mass by up to 0.845%. Recomputing the
+hydrostatic seed with each prescription reproduces its respective CI grid.
+The new comparison file takes those two arrays from the certified cold start
+and retains the previous wavelength and flux arrays. The maximum spectral
+change on the stellar energy scale is 0.111%, within the existing 0.3% limit.
+[Cold-start provenance](heh_mixed_heminus_2026_11_19/cold/manifest.json).
+
+`heh_mixed_heminus_2026_11_19/cold/`, `stark_area_2026_11_11/cold/`, `cool_h_chemistry_2026_11_10/cold/`,
 `montreal_h_radius_2026_10_27/cold/` and `cold/` (newest first) supply comparison outputs for
 the protected cold-start canaries. Those tests always calculate a fresh
 atmosphere before reading them and still require every independent equilibrium

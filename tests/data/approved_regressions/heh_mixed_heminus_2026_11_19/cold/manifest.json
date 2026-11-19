@@ -1,0 +1,186 @@
+{
+  "case": "db-10000",
+  "model": {
+    "spectral_type": "DB",
+    "effective_temperature": 10000,
+    "logg": 8.0,
+    "quality": "production"
+  },
+  "previous_control": "tests/data/approved_regressions/cold/db-10000.npz",
+  "previous_control_sha256": "787c09435c3d9d440f965076b5a8bacc9b3735480581eb2076dfca9031d05dde",
+  "capture": "Copy gas_pressure and column_mass from the certified candidate atmosphere.npz. Keep wavelength and surface_flux from the previous control.",
+  "seed_comparison": "Recompute helium_continuum_atmosphere(10000., 8., n_depth=80, tau_min=1e-12, depth_concentration=1.) with each opacity prescription and compare with the first 80 layers of its GitHub cold start. The same eight-point factor-four geometric extension accounts for the final eight layers.",
+  "sources": {
+    "base": {
+      "opacity": "automatic",
+      "job": "https://github.com/kareemelbadry/OpenWD/actions/runs/44536224408/job/135602638439",
+      "tested_commit": "4afde74b7e5002892218c65cdb7653b16745e81d",
+      "atmosphere_sha256": "8a52216f0edc53300e660ffd98ebca1581559b9180bdc8f126d26250d47404df",
+      "metadata_sha256": "5c390a148c5c568004bcf7428c9a914e677c242d0ee1ed073a2c7197e6faa732",
+      "spectrum_sha256": "695ad86fe57686ce62fbb3c2350bd26fca076d9e6a593d181936a472f8726b6e",
+      "cold_start": true,
+      "checkpoint_matches_model_request": false,
+      "iterations": 66,
+      "equilibrium_certificate": {
+        "schema": 1,
+        "scope": "declared equations on the structure grid",
+        "verified": true,
+        "checks": {
+          "all_depth_flux": {
+            "value": 6.395399088088283e-08,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          },
+          "surface_flux": {
+            "value": null,
+            "tolerance": 0.003,
+            "passed": false,
+            "measured": false
+          },
+          "photospheric_flux": {
+            "value": null,
+            "tolerance": 0.003,
+            "passed": false,
+            "measured": false
+          },
+          "local_energy": {
+            "value": 3.633047154634734e-05,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          },
+          "temperature_stationarity": {
+            "value": 9.849403330264295e-06,
+            "tolerance": 0.0003,
+            "passed": true,
+            "measured": true
+          },
+          "source_closure": {
+            "value": 1.7588457757438193e-15,
+            "tolerance": 1e-06,
+            "passed": true,
+            "measured": true
+          },
+          "boundary_screening": {
+            "value": 0.0,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          }
+        },
+        "required_checks": [
+          "all_depth_flux",
+          "local_energy",
+          "temperature_stationarity",
+          "source_closure",
+          "boundary_screening"
+        ],
+        "failures": [],
+        "independent_grid_validation": false,
+        "full_physics_validation": false
+      },
+      "maximum_relative_structure_difference": {
+        "column_mass": 2.6645352591003757e-15,
+        "gas_pressure": 2.6645352591003757e-15
+      },
+      "maximum_relative_seed_reproduction_error": {
+        "gas_pressure": 2.6645352591003757e-15,
+        "column_mass": 2.6645352591003757e-15
+      },
+      "peak_energy_scale_flux_difference": 4.951683433728999e-10,
+      "integrated_absolute_flux_difference_over_target": 4.446242268260699e-10,
+      "relative_band_flux_differences": {
+        "1150-3000": -7.121318392486945e-10,
+        "3500-7000": -3.231981369072304e-10,
+        "7000-300000": -1.7659680252261653e-10
+      }
+    },
+    "candidate": {
+      "opacity": "john1968-shape",
+      "job": "https://github.com/kareemelbadry/OpenWD/actions/runs/44585778011/job/135778619298",
+      "tested_commit": "f72c1dbc1e559fccd67b8839aae74dfceba9abe1",
+      "atmosphere_sha256": "38230563a84e7fae95aca405836be7609578a068c9c89cec4be2f5b081c219f0",
+      "metadata_sha256": "2c1c567eddcbb750cf8f042cb916ee6ca20d0e1ace2206d90c0235c62f15e711",
+      "spectrum_sha256": "a3119c3e5969efb4360b426185ad30ba3e96365e6dcf26731c4cd17b03b22a7d",
+      "cold_start": true,
+      "checkpoint_matches_model_request": false,
+      "iterations": 70,
+      "equilibrium_certificate": {
+        "schema": 1,
+        "scope": "declared equations on the structure grid",
+        "verified": true,
+        "checks": {
+          "all_depth_flux": {
+            "value": 2.7109677920966746e-05,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          },
+          "surface_flux": {
+            "value": null,
+            "tolerance": 0.003,
+            "passed": false,
+            "measured": false
+          },
+          "photospheric_flux": {
+            "value": null,
+            "tolerance": 0.003,
+            "passed": false,
+            "measured": false
+          },
+          "local_energy": {
+            "value": 0.00022566675928346885,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          },
+          "temperature_stationarity": {
+            "value": 8.544373945618133e-05,
+            "tolerance": 0.0003,
+            "passed": true,
+            "measured": true
+          },
+          "source_closure": {
+            "value": 1.540640525018072e-15,
+            "tolerance": 1e-06,
+            "passed": true,
+            "measured": true
+          },
+          "boundary_screening": {
+            "value": 0.0,
+            "tolerance": 0.003,
+            "passed": true,
+            "measured": true
+          }
+        },
+        "required_checks": [
+          "all_depth_flux",
+          "local_energy",
+          "temperature_stationarity",
+          "source_closure",
+          "boundary_screening"
+        ],
+        "failures": [],
+        "independent_grid_validation": false,
+        "full_physics_validation": false
+      },
+      "maximum_relative_structure_difference": {
+        "column_mass": 0.008450164639389968,
+        "gas_pressure": 0.008450164639389968
+      },
+      "maximum_relative_seed_reproduction_error": {
+        "gas_pressure": 1.1102230246251565e-15,
+        "column_mass": 1.1102230246251565e-15
+      },
+      "peak_energy_scale_flux_difference": 0.0011099273053457551,
+      "integrated_absolute_flux_difference_over_target": 0.0006456893435851131,
+      "relative_band_flux_differences": {
+        "1150-3000": -0.00033833107774538173,
+        "3500-7000": 0.0004331998986352388,
+        "7000-300000": -0.0003165346812643173
+      }
+    }
+  },
+  "output_sha256": "2c543531fc8f3f395deedc9c5d992e481105ffddb5312e2f93034b570837d630"
+}
