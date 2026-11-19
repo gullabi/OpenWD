@@ -103,7 +103,7 @@ class HotEquations:
             a = self.model.rebuild_atmosphere(self.seed, np.exp(log_t))
             ref = self.model._rate_state(a)
             groups = self.model._line_problems(a, resolve_transformed_cores=True)
-            self.prepared[key] = (a, ref, groups, _FixedTransferCache(a, self.wave))
+            self.prepared[key] = (a, ref, groups, _FixedTransferCache(a, self.wave, compact_helium_lines=True))
             if len(self.prepared)>3:
                 del self.prepared[next(iter(self.prepared))]
         return self.prepared[key]

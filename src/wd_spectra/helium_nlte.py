@@ -1290,12 +1290,13 @@ def combined_helium_nlte_transfer_coefficients(
         atmosphere, wavelength, maximum_helium_ii_level,
         lte_absorption=lte_continuum(),
     ))
-    ones_bound = np.ones(
-        (atmosphere.n_depth, maximum_helium_ii_level), dtype=np.float64
-    )
-    ones_continuum = np.ones(atmosphere.n_depth, dtype=np.float64)
-    he_ii_lte_absorption, he_ii_lte_emissivity = _nlte_continuum_terms(
-        he_ii_problem, ones_bound, ones_continuum
+    # Every population probe subtracts the same LTE contribution at fixed
+    # temperature and density. Keep that reference with the continuum kernel.
+    he_ii_lte_absorption, he_ii_lte_emissivity = _cached_transfer(
+        _cache, ('he-ii-lte-continuum-terms', maximum_helium_ii_level),
+        lambda: _nlte_continuum_terms(
+            he_ii_problem, np.ones((atmosphere.n_depth, maximum_helium_ii_level)),
+            np.ones(atmosphere.n_depth)),
     )
     he_ii_nlte_absorption, he_ii_nlte_emissivity = _nlte_continuum_terms(
         he_ii_problem,

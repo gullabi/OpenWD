@@ -55,6 +55,22 @@ def test_dao_outer_layer_integrates_transformed_helium_uv_cores(atom, teff, logg
             np.testing.assert_allclose(integrated_profile(grid), reference, rtol=0.01, atol=0.)
 
 
+def test_hot_cached_line_spans_reweight_changed_populations_exactly(atom):
+    model = replace(atom, log_hydrogen_to_helium=0.)
+    seed = gray_hydrogen_helium_atmosphere(40000., 7., 0., n_depth=4)
+    equations = HotEquations(seed, model, np.geomspace(25., 100000., 80))
+    state = equations.initial_state()
+    atmosphere, reference, _, cache = equations.prepare(state[:seed.n_depth])
+    for shift in (0., 0.02):
+        trial = state.copy()
+        trial[seed.n_depth] += shift
+        populations = equations.populations(trial, reference)
+        cached = model.transfer_coefficients(atmosphere, equations.wave, populations, _cache=cache)
+        fresh = model.transfer_coefficients(atmosphere, equations.wave, populations)
+        for field in ('true_absorption', 'thermal_emissivity', 'scattering'):
+            np.testing.assert_array_equal(getattr(cached, field), getattr(fresh, field))
+
+
 @pytest.mark.parametrize('ratio,fraction,hydrogen_levels',
     [(ratio,fraction,3) for ratio in (None,2.) for fraction in (0.,.3,1.)] + [(6.,1.,20)])
 def test_joint_material_columns_match_full_coupled_residual(tmp_path,ratio,fraction,hydrogen_levels):

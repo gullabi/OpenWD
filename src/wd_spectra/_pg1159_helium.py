@@ -15,12 +15,11 @@ from .helium_nlte import (
 )
 from .helium_collisions import TlustyHeliumCollisionData
 from .multilevel_nlte import HydrogenElectronCollisionData
-from .nlte_core import NLTETransferCoefficients, OpacitySpan, _FixedTransferCache
+from .nlte_core import NLTETransferCoefficients, OpacitySpan, _FixedTransferCache, _HELIUM_LINE_CACHE_KEYS
 
 FloatArray = NDArray[np.float64]
 
 
-_LINE_KEYS = ("he-i-line", "he-i-resonance", "he-ii-line")
 # Upper bound on retained line-profile storage for one population solve.
 _LINE_SPAN_CACHE_BYTES = 512 * 1024 * 1024
 
@@ -42,7 +41,7 @@ class PG1159HeliumTransferCache(_FixedTransferCache):
         self.line_span_bytes = 0
 
     def get(self, key, build):
-        if key[0] in _LINE_KEYS:
+        if key[0] in _HELIUM_LINE_CACHE_KEYS:
             span = self.line_spans.get(key)
             if span is not None:
                 return span
@@ -53,13 +52,7 @@ class PG1159HeliumTransferCache(_FixedTransferCache):
                 and value.ndim == 2
             ):
                 return value
-            # Keep signed zeros too, so the retained rows are bit-exact.
-            rows = np.flatnonzero(
-                np.any((value != 0.0) | np.signbit(value), axis=1)
-            )
-            start = int(rows[0]) if rows.size else 0
-            stop = int(rows[-1]) + 1 if rows.size else 0
-            span = OpacitySpan(start, value[start:stop].copy(), value.shape[0])
+            span = OpacitySpan.from_array(value)
             if self.line_span_bytes + span.block.nbytes <= _LINE_SPAN_CACHE_BYTES:
                 self.line_spans[key] = span
                 self.line_span_bytes += span.block.nbytes

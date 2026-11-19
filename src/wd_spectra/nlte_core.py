@@ -49,6 +49,9 @@ class NLTETransferCoefficients:
         return self.true_absorption + self.scattering
 
 
+_HELIUM_LINE_CACHE_KEYS = ("he-i-line", "he-i-resonance", "he-ii-line")
+
+
 class OpacitySpan:
     """Rows ``start:start+len(block)`` of an otherwise zero (wavelength, depth) array."""
 
@@ -59,6 +62,14 @@ class OpacitySpan:
         self.block = block
         self.n_wavelength = int(n_wavelength)
 
+    @classmethod
+    def from_array(cls, value):
+        # Include signed zeros in the span to preserve its exact values.
+        rows = np.flatnonzero(np.any((value != 0.0) | np.signbit(value), axis=1))
+        start = int(rows[0]) if rows.size else 0
+        stop = int(rows[-1]) + 1 if rows.size else 0
+        return cls(start, value[start:stop].copy(), value.shape[0])
+
     @property
     def rows(self):
         return slice(self.start, self.start + self.block.shape[0])
@@ -66,10 +77,11 @@ class OpacitySpan:
 
 class _FixedTransferCache:
     """Private single-atmosphere, single-grid cache for population iteration."""
-    def __init__(self, atmosphere, wavelength):
+    def __init__(self, atmosphere, wavelength, *, compact_helium_lines=False):
         self.atmosphere = atmosphere
         self.wavelength = np.array(wavelength, copy=True)
         self.values = {}
+        self.compact_helium_lines = compact_helium_lines
 
     def validate(self, atmosphere, wavelength):
         if atmosphere is not self.atmosphere or not np.array_equal(wavelength, self.wavelength):
@@ -77,7 +89,10 @@ class _FixedTransferCache:
 
     def get(self, key, build):
         if key not in self.values:
-            self.values[key] = build()
+            value = build()
+            if self.compact_helium_lines and key[0] in _HELIUM_LINE_CACHE_KEYS:
+                value = OpacitySpan.from_array(value)
+            self.values[key] = value
         return self.values[key]
 
 
