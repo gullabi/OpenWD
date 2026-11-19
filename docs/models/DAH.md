@@ -150,6 +150,8 @@ the equilibrium checks and absolute-flux agreement.
 | `include_magnetic_eos` | `True` | Magnetic Saha/HM equilibrium above 1 MG. |
 | `include_centered_motion` | `True` | Transverse-mass weighting in the EOS and RWA populations. |
 | `include_finite_nuclear_mass` | `False` | H2db component positions for a finite proton mass: tracks read at β/μ² and shifted by −Δm ħω_cp ([Wunner et al. 1985](https://ui.adsabs.harvard.edu/abs/1985A%26A...149..102W), Eq. 1; [Pavlov & Mészáros 1993](https://doi.org/10.1086/173274), Eq. 2.12a); moves σ components by up to ~5 Å at 200–400 MG. |
+| `balmer_line_broadening` | `"zero_field_stark"` | `"motional"`: above 1 MG each Hα component in the motional Stark table takes a one-sided exponential (mean shift s = Δα kT β²/M) convolved with the thermal Doppler profile in place of the zero-field Stark kernel (Pavlov & Mészáros 1993, Eqs. 3.27–3.31; Rosato 2023, Eq. 3). Components the table flags, and all higher Balmer lines, keep the zero-field kernel. |
+| `motional_scale` | `1.0` | Factor on the motional shift s; `0` leaves the Doppler profile alone. Used only with `"motional"`. |
 
 `paper_dah_config(**parameters)` returns a `DAHConfig` with the zero-field
 EOS and H I bound–free opacity at all fields (`include_rwa_photoionization`,

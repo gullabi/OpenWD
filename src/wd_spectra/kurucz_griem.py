@@ -147,5 +147,6 @@ def kurucz_griem_templates(atmosphere, *, maximum_upper_level=12, include_disper
                     * -np.expm1(-PLANCK * nu0 / (BOLTZMANN * atmosphere.temperature)))
         opacity = shape * (strength / area)[None, :]
         templates[line.upper_level] = BalmerLineTemplate(
-            mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if include_dispersion else None)
+            mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if include_dispersion else None,
+            strength)
     return templates

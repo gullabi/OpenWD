@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from .constants import (
     BOLTZMANN,
@@ -809,6 +809,8 @@ class H2dbBalmerComponents:
     normalized_strength: FloatArray
     line_strength_scale: FloatArray
     delta_m: NDArray[np.int64]
+    # H2db (lower m, z-parity, nu, upper m, z-parity, nu), physical sign of m.
+    labels: NDArray[np.int64] | None = None
 
 
 @dataclass(frozen=True)
@@ -904,6 +906,11 @@ class H2dbTransitionDatabase:
         # linear Zeeman shift of up to 2e-5 Ry (about 1 A at Halpha).
         zero_energy = np.full(len(transitions), 0.25 - 1.0 / int(upper_level) ** 2)
         delta_m = np.asarray([transition.delta_m for transition in transitions])
+        labels = np.asarray([
+            (t.lower_magnetic_quantum_number, t.lower_z_parity, t.lower_excitation_index,
+             t.upper_magnetic_quantum_number, t.upper_z_parity, t.upper_excitation_index)
+            for t in transitions
+        ], dtype=np.int64)
 
         # Scaling each branch to the package's (reduced-mass) vacuum line
         # center removes the infinite-nuclear-mass offset of H2db while
@@ -1020,6 +1027,7 @@ class H2dbTransitionDatabase:
         oscillator_proxy = oscillator_proxy[keep]
         initial = initial[keep]
         delta_m = delta_m[keep]
+        labels = labels[keep]
         # A constant shift of every lower-state energy cancels.  More tightly
         # bound substates receive the correct larger LTE population.
         excitation = initial - np.min(initial)
@@ -1044,6 +1052,7 @@ class H2dbTransitionDatabase:
             strength.astype(np.float64),
             line_strength_scale.astype(np.float64),
             delta_m.astype(np.int64),
+            labels,
         )
 
 
@@ -1189,6 +1198,44 @@ def _read_h2db_energies_cached(path_string: str) -> H2dbEnergyDatabase:
     return database
 
 
+@dataclass(frozen=True)
+class MotionalStarkTable:
+    """Delta alpha = alpha_up - alpha_low [atomic units] of H2db components.
+
+    Built by ``tools/build_motional_stark_table.py``; NaN where the second-order
+    motional shift does not apply (see there).
+    """
+
+    field_megagauss: FloatArray
+    delta_alpha: dict[tuple[int, ...], FloatArray]
+
+    def delta_alpha_at(self, labels: ArrayLike, field_strength_megagauss: float) -> float:
+        """Linear interpolation in B; NaN outside the table or next to a NaN node."""
+
+        values = self.delta_alpha.get(tuple(int(x) for x in labels))
+        grid = self.field_megagauss
+        if values is None or not grid[0] <= field_strength_megagauss <= grid[-1]:
+            return math.nan
+        index = min(int(np.searchsorted(grid, field_strength_megagauss, side="right")) - 1, grid.size - 2)
+        weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
+        return float((1.0 - weight) * values[index] + weight * values[index + 1])
+
+
+@lru_cache(maxsize=2)
+def _read_motional_stark_cached(path_string: str) -> MotionalStarkTable:
+    with np.load(path_string) as values:
+        return MotionalStarkTable(
+            np.asarray(values["field_megagauss"], dtype=np.float64),
+            {tuple(int(x) for x in label): np.asarray(row, dtype=np.float64)
+             for label, row in zip(values["labels"], values["delta_alpha"])},
+        )
+
+
+def read_motional_stark_table(path: str | Path) -> MotionalStarkTable:
+    """Read and cache the bundled motional Stark table."""
+    return _read_motional_stark_cached(str(Path(path).expanduser().resolve()))
+
+
 def read_h2db_energy_database(path: str | Path) -> H2dbEnergyDatabase:
     """Read and cache the stationary-state energies of the bundled subset."""
 
@@ -1204,6 +1251,8 @@ __all__ = [
     "H2dbEnergyTrack",
     "H2dbTransition",
     "H2dbTransitionDatabase",
+    "MotionalStarkTable",
     "read_h2db_energy_database",
+    "read_motional_stark_table",
     "read_h2db_transition_database",
 ]

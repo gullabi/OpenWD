@@ -30,6 +30,7 @@ from ..magnetic_atomic import (
     H2dbTransitionDatabase,
     read_h2db_energy_database,
     read_h2db_transition_database,
+    read_motional_stark_table,
 )
 from .common import (
     ModelData,
@@ -100,6 +101,8 @@ class DAHConfig:
     include_centered_motion: bool = True
     # Finite proton mass in the H2db Balmer component positions (opt-in).
     include_finite_nuclear_mass: bool = False
+    balmer_line_broadening: Literal["zero_field_stark", "motional"] = "zero_field_stark"
+    motional_scale: float = 1.0
     mixing_length_alpha: float | None = None
     # Opt-in; takes precedence over disk_field_bins.
     disk_component_drift_angstrom: float | None = None
@@ -311,6 +314,10 @@ def _validate(config: DAHConfig, *, custom_surface_cells: bool = False) -> None:
         raise ValueError("magnetic_field_megagauss must be finite and nonnegative")
     if config.polarized_transfer not in ("full-stokes-iquv", "scalar-stokes-i"):
         raise ValueError("polarized_transfer must be 'full-stokes-iquv' or 'scalar-stokes-i'")
+    if config.balmer_line_broadening not in ("zero_field_stark", "motional"):
+        raise ValueError("balmer_line_broadening must be 'zero_field_stark' or 'motional'")
+    if not (np.isfinite(config.motional_scale) and config.motional_scale >= 0.0):
+        raise ValueError("motional_scale must be finite and non-negative")
     drift = config.disk_component_drift_angstrom
     if custom_surface_cells and drift is not None:
         raise ValueError("custom surface_cells do not support disk_component_drift_angstrom compression")
@@ -379,7 +386,8 @@ def _surface_cells_sha256(cells: SurfaceCells, *, structure_only: bool = False) 
 def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) -> DAHConfig:
     # Line positions enter the synthesis only, so one relaxed structure serves both settings.
     options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
-                   include_finite_nuclear_mass=False)
+                   include_finite_nuclear_mass=False,
+                   balmer_line_broadening="zero_field_stark", motional_scale=1.0)
     if custom_surface_cells:
         # A supplied map replaces the built-in geometry controls. The actual
         # field distribution/weights/bounds are identified separately below.
@@ -470,6 +478,10 @@ def compute_dah(
         data.require(data.h2db_balmer_subset)
         transitions = read_h2db_transition_database(data.h2db_balmer_subset)
         energies = read_h2db_energy_database(data.h2db_balmer_subset)
+    motional = None
+    if strong and config.balmer_line_broadening == "motional":
+        data.require(data.motional_stark_table)
+        motional = read_motional_stark_table(data.motional_stark_table)
     if (not custom_geometry and config.disk_component_drift_angstrom is not None
             and config.field_geometry == "dipole"):
         # Components just outside the output window still contribute wings.
@@ -497,6 +509,8 @@ def compute_dah(
         include_magnetic_eos=config.include_magnetic_eos,
         include_centered_motion=config.include_centered_motion,
         include_finite_nuclear_mass=config.include_finite_nuclear_mass,
+        motional_stark_table=motional,
+        motional_scale=config.motional_scale,
         line_regime="h2db" if strong else "linear-zeeman",
     )
     if not relax_atmosphere and initial_atmosphere is None:
