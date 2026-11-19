@@ -17,6 +17,60 @@ from wd_spectra.nlte import _profile_averaged_mean_intensity_nu
 from wd_spectra import helium_nlte as he
 from wd_spectra.spectrum import planck_lambda_angstrom
 
+
+@pytest.mark.parametrize("teff,logg", [(40000., 7.), (60000., 8.)])
+def test_dao_outer_layer_integrates_transformed_helium_uv_cores(atom, teff, logg):
+    from wd_spectra._compat import trapezoid
+    from wd_spectra.constants import LIGHT_SPEED
+    from wd_spectra.helium import HeliumIILine, helium_ii_line_mass_absorption_coefficient
+
+    model = replace(atom, maximum_helium_ii_level=4, log_hydrogen_to_helium=0.)
+    atmosphere = gray_hydrogen_helium_atmosphere(teff, logg, 0., n_depth=4)
+    equations = HotEquations(atmosphere, model, np.geomspace(25., 100000., 80))
+    atmosphere, _, groups, _ = equations.prepare(np.log(atmosphere.temperature))
+    # Check both quadratures against independent, finely sampled line areas.
+    # A constant J would hide a missed core in a normalized rate average.
+    for upper in (2, 4):
+        problem, = groups[1][1, upper]
+        line = problem.line
+        center = line.wavelength_vacuum_angstrom
+        component = HeliumIILine(line.name, 1, upper, center, line.absorption_oscillator_strength)
+        half_width = center - problem.continuum.wavelength_angstrom[0]
+        offset = np.geomspace(1.e-7, half_width, 1000)
+        reference_grid = np.r_[center - offset[::-1], center, center + offset]
+
+        def integrated_profile(grid):
+            opacity = helium_ii_line_mass_absorption_coefficient(
+                atmosphere, grid, lines=(component,), stark_table=model.helium_ii_stark_table)
+            frequency_jacobian = LIGHT_SPEED * 1.e8 / grid**2
+            area = trapezoid(opacity[:, 0] * frequency_jacobian, grid)
+            mean_nu = 1. - 0.8 * np.exp(-((grid - center) / 0.004)**2)
+            mean_lambda = (mean_nu * frequency_jacobian)[:, None]
+            rate_mean = _profile_averaged_mean_intensity_nu(grid, opacity[:, :1], mean_lambda)
+            return area, rate_mean[0]
+
+        reference = integrated_profile(reference_grid)
+        common = equations.wave[np.abs(equations.wave - center) <= half_width]
+        for grid in (problem.continuum.wavelength_angstrom, common):
+            np.testing.assert_allclose(integrated_profile(grid), reference, rtol=0.01, atol=0.)
+
+
+def test_hot_cached_line_spans_reweight_changed_populations_exactly(atom):
+    model = replace(atom, log_hydrogen_to_helium=0.)
+    seed = gray_hydrogen_helium_atmosphere(40000., 7., 0., n_depth=4)
+    equations = HotEquations(seed, model, np.geomspace(25., 100000., 80))
+    state = equations.initial_state()
+    atmosphere, reference, _, cache = equations.prepare(state[:seed.n_depth])
+    for shift in (0., 0.02):
+        trial = state.copy()
+        trial[seed.n_depth] += shift
+        populations = equations.populations(trial, reference)
+        cached = model.transfer_coefficients(atmosphere, equations.wave, populations, _cache=cache)
+        fresh = model.transfer_coefficients(atmosphere, equations.wave, populations)
+        for field in ('true_absorption', 'thermal_emissivity', 'scattering'):
+            np.testing.assert_array_equal(getattr(cached, field), getattr(fresh, field))
+
+
 @pytest.mark.parametrize('ratio,fraction,hydrogen_levels',
     [(ratio,fraction,3) for ratio in (None,2.) for fraction in (0.,.3,1.)] + [(6.,1.,20)])
 def test_joint_material_columns_match_full_coupled_residual(tmp_path,ratio,fraction,hydrogen_levels):

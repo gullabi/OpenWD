@@ -23,6 +23,7 @@ from wd_spectra.models import (
     DBConfig,
     compute_da,
     compute_db,
+    run_model,
     save_model_result,
 )
 from wd_spectra.models.common import _jsonable
@@ -248,6 +249,27 @@ def test_standard_db_22000_enters_exact_flux_verification(capsys):
         "stationary-residual-converged",
     )
     assert not metadata["initial_temperature_was_supplied"]
+
+
+def test_hot_db_crosses_helium_ii_profile_join_from_cold(tmp_path):
+    config = DBConfig(effective_temperature=38_000.0, logg=8.0, quality="production")
+    output = tmp_path / "db-38000-cold"
+    result = run_model(config, output, require_convergence=True)
+    assert result.convergence_verified and result.selection.workflow == "db"
+    request = json.loads((output / "model-run.json").read_text())
+    assert request["cold_start"] and request["initial_checkpoint"] is None
+    metadata = json.loads((output / "metadata.json").read_text())
+    certificate = metadata["atmosphere_metadata"]["equilibrium_certificate"]
+    assert certificate["verified"]
+    tolerances = dict(all_depth_flux=3e-3, local_energy=3e-3,
+                      temperature_stationarity=3e-4, source_closure=1e-6,
+                      boundary_screening=3e-3)
+    for name, tolerance in tolerances.items():
+        check = certificate["checks"][name]
+        assert check["measured"] and check["passed"]
+        assert check["tolerance"] == tolerance and check["value"] < tolerance
+    flux = result.spectrum.surface_flux_lambda
+    assert np.isfinite(flux).all() and np.all(flux > 0)
 
 
 @pytest.mark.parametrize(

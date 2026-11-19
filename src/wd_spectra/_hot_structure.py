@@ -77,7 +77,7 @@ class HotEquations:
         self.nh = 0 if model.log_hydrogen_to_helium is None else model.maximum_hydrogen_level+1
         self.indices = np.r_[np.arange(self.nhe-1), np.arange(self.nhe, self.nhe+self.nh-1)] if self.nh else np.arange(self.nhe-1)
         self.continua = np.r_[np.full(self.nhe-1, self.nhe-1), np.full(max(0,self.nh-1), self.nhe+self.nh-1)]
-        groups = model._line_problems(seed)
+        groups = model._line_problems(seed, resolve_transformed_cores=True)
         grids = [structure_wave, he.default_neutral_helium_continuum_wavelength(model.helium_i_atom),
                  he.default_helium_ii_continuum_wavelength(model.maximum_helium_ii_level)]
         if self.nh:
@@ -102,8 +102,8 @@ class HotEquations:
         if key not in self.prepared:
             a = self.model.rebuild_atmosphere(self.seed, np.exp(log_t))
             ref = self.model._rate_state(a)
-            groups = self.model._line_problems(a)
-            self.prepared[key] = (a, ref, groups, _FixedTransferCache(a, self.wave))
+            groups = self.model._line_problems(a, resolve_transformed_cores=True)
+            self.prepared[key] = (a, ref, groups, _FixedTransferCache(a, self.wave, compact_helium_lines=True))
             if len(self.prepared)>3:
                 del self.prepared[next(iter(self.prepared))]
         return self.prepared[key]

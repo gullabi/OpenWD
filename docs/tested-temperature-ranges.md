@@ -34,6 +34,7 @@ Paper range: up to about 40,000 K, with a separate cool-DB comparison. See the
 | Points | Settings | Evidence |
 | --- | --- | --- |
 | 10000, 22000 / 8.0 | `compute_db`, production; 22000 K also standard | Canaries `db-10000`, `db-22000`, `db-22000-standard` |
+| 38000/8.0 | `run_model`, production | Canary `db-38000` |
 | 12000/6.0, 13000/8.0, 16000/9.0, 17000/6.0, 18000/7.0, 20000/8.0, 27500/8.125, 30000/6.25, 32000/6.0, 32000/6.25, 34000/6.0, 34000/6.5, 36000/6.5, 36000/7.5, 38000/7.5, 40000/6.0, 40000/7.0, 40000/7.75, 45000/7.0, 55000/6.5, 60000/6.25 | default `transfer_discretization="auto"`, production | Cold starts, 3–29 min |
 | 7000/6.0, 7500/6.5, 8000/6.5, 9000/7.0, 9500/6.0 | column-mass discretization (selected by `"auto"` here), production | Cold starts, up to 2.5 h |
 | Dense helium: 4500, 5000, 5500, 6000, 6500, 7000, 8000 / 8.0 | `run_model`, production | Cold starts with an independent spectrum audit; canaries `dense-db-5000`, `dense-db-8000` |
@@ -85,7 +86,7 @@ Paper range: 40,000–90,000 K. See the [DO/DAO guide](models/DO-DAO.md).
 | Points | Settings | Evidence |
 | --- | --- | --- |
 | DO: 50000, 55000, 60000, 70000, 90000, 120000 / 8.0 | standard | Cold starts; canary `do-50000` |
-| DAO: 40000/8.0 (log N(H)/N(He) = 0); 60000/8.0 and 100000/8.0 (log N(H)/N(He) = 2) | standard | Cold starts; canary `dao-60000` |
+| DAO: 40000/7.0 and 40000/8.0 (log N(H)/N(He) = 0); 60000/8.0 and 100000/8.0 (log N(H)/N(He) = 2) | standard | Cold starts, canaries `dao-40000-g7` and `dao-60000` |
 | Hot DA, GD 153: 40204/7.82, log N(H)/N(He) = 6 | standard; production with H8 and H20 | Cold starts |
 | Trace metals, G191-B2B: 52500/7.53, N(He)/N(H) = 1e-5 | standard and production | Cold start of host and metals |
 

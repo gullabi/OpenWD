@@ -1290,12 +1290,13 @@ def combined_helium_nlte_transfer_coefficients(
         atmosphere, wavelength, maximum_helium_ii_level,
         lte_absorption=lte_continuum(),
     ))
-    ones_bound = np.ones(
-        (atmosphere.n_depth, maximum_helium_ii_level), dtype=np.float64
-    )
-    ones_continuum = np.ones(atmosphere.n_depth, dtype=np.float64)
-    he_ii_lte_absorption, he_ii_lte_emissivity = _nlte_continuum_terms(
-        he_ii_problem, ones_bound, ones_continuum
+    # Every population probe subtracts the same LTE contribution at fixed
+    # temperature and density. Keep that reference with the continuum kernel.
+    he_ii_lte_absorption, he_ii_lte_emissivity = _cached_transfer(
+        _cache, ('he-ii-lte-continuum-terms', maximum_helium_ii_level),
+        lambda: _nlte_continuum_terms(
+            he_ii_problem, np.ones((atmosphere.n_depth, maximum_helium_ii_level)),
+            np.ones(atmosphere.n_depth)),
     )
     he_ii_nlte_absorption, he_ii_nlte_emissivity = _nlte_continuum_terms(
         he_ii_problem,
@@ -2462,6 +2463,7 @@ def _prepare_helium_line_transfer_problem(
     maximum_level: int,
     *,
     stark_table: HeliumIIStarkTable | str | Path | None,
+    resolve_transformed_core: bool = False,
 ) -> _LineTransferProblem:
     resolved_stark_table = stark_table
     if (
@@ -2491,6 +2493,14 @@ def _prepare_helium_line_transfer_problem(
                 line.wavelength_vacuum_angstrom + logarithmic_offset,
             ]
         )
+    elif resolve_transformed_core:
+        # The transformed H profiles compress wavelength offsets by Z^-5.
+        # A linear hydrogen core grid can put the entire UV core in one bin,
+        # overweighting its contribution to both radiative rates and heating.
+        center = line.wavelength_vacuum_angstrom
+        half_width = center - _line_grid(line)[0]
+        offset = np.geomspace(1.0e-5, half_width, 120)
+        wavelength = np.r_[center - offset[::-1], center, center + offset]
     else:
         wavelength = _line_grid(line)
     helium_line = next(

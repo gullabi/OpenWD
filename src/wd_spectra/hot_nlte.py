@@ -173,11 +173,12 @@ class HotNLTEModel:
                 continuum_mean_intensity_lambda=mean)
         return HotPopulationState(helium, hydrogen_state)
 
-    def _line_problems(self, atmosphere):
+    def _line_problems(self, atmosphere, *, resolve_transformed_cores=False):
         neutral = he._neutral_helium_line_components(atmosphere, self.helium_i_stark_table, self.helium_i_atom)
         ion = {(lower, upper): (he._prepare_helium_line_transfer_problem(
             atmosphere, he.helium_ii_shell_transition(lower, upper),
-            self.maximum_helium_ii_level, stark_table=self.helium_ii_stark_table),)
+            self.maximum_helium_ii_level, stark_table=self.helium_ii_stark_table,
+            resolve_transformed_core=resolve_transformed_cores),)
             for lower, upper in sorted({
                 (line.lower_principal_quantum_number, line.upper_principal_quantum_number)
                 for line in he.coupled_helium_ii_lines(self.maximum_helium_ii_level)})}
