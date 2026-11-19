@@ -16,6 +16,8 @@ CASES = [
     pytest.param(DOConfig(effective_temperature=50000.), id='do-50000-standard'),
     pytest.param(DOConfig(effective_temperature=60000.), id='do-60000-standard'),
     pytest.param(DOConfig(effective_temperature=70000.), id='do-70000-standard'),
+    pytest.param(DAOConfig(effective_temperature=40000., logg=7., log_hydrogen_to_helium=0.),
+                 id='dao-40000-g7-standard'),
     pytest.param(DAOConfig(effective_temperature=60000., log_hydrogen_to_helium=2.),
                  id='dao-60000-standard'),
     pytest.param(DAOConfig(effective_temperature=40204., logg=7.82,

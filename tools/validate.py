@@ -50,6 +50,7 @@ COLD_TESTS = {
     **{f"dah-{key}": f"tests/test_dah_paper.py::test_dah_public_default_cold_start[{key}]"
        for key in ("j1007+1237", "j1254+5612")},
     "do-50000": "tests/test_hot_cold_canary.py::test_hot_public_model_converges_from_cold[do-50000-standard]",
+    "dao-40000-g7": "tests/test_hot_cold_canary.py::test_hot_public_model_converges_from_cold[dao-40000-g7-standard]",
     "dao-60000": "tests/test_hot_cold_canary.py::test_hot_public_model_converges_from_cold[dao-60000-standard]",
     "sdb-hd4539": "tests/test_sdb_cold_canary.py::test_hd4539_public_cold_start_and_research_spectrum",
     "sdb-30000-he0": "tests/test_sdb_cold_canary.py::test_equal_hydrogen_and_helium_sdb_converges_from_cold",
@@ -63,6 +64,7 @@ COLD_TESTS = {
     + "test_protected_db_cold_starts_converge_without_fallback[22000.0-90]",
     "db-22000-standard": CANARY
     + "test_standard_db_22000_enters_exact_flux_verification",
+    "db-38000": CANARY + "test_hot_db_crosses_helium_ii_profile_join_from_cold",
     "da-5000": CANARY
     + "test_protected_da_cold_starts_converge_without_fallback[5000.0-100]",
     "da-20000": CANARY

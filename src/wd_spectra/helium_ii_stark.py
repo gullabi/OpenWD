@@ -63,8 +63,10 @@ class HeliumIIStarkLine:
         and linear interpolation in ``log10(abs(delta wavelength))``.  Outside
         the tabulated electron-density range it switches to its analytic
         Doppler-plus-Holtsmark approximation ``STARKA``.  That continuation is
-        used here too, but with SYNSPEC's hydrogen factor ``FAC = 2`` and
+        used here too, with SYNSPEC's hydrogen factor ``FAC = 2`` and
         normalized to unit area (SYNSPEC's He II call keeps 0.48 of it).
+        The high-density extrapolation interval joins the two profiles
+        smoothly before the analytic continuation takes over.
         """
 
         wavelength = np.asarray(wavelength_angstrom, dtype=np.float64)
@@ -121,13 +123,26 @@ class HeliumIIStarkLine:
             high_density_blend_fraction = (
                 blend_coordinate**2 * (3.0 - 2.0 * blend_coordinate)
             )
+        density_join_fraction = 0.0
+        analytic_continuation = interpolation == "synspec-quadratic" or high_pickering_adaptive
+        upper_density = self.log_electron_density[-1]
+        upper_switch = 1.01 * upper_density
+        if (
+            not sparse_high_pickering
+            and analytic_continuation
+            and upper_density < log_ne <= upper_switch
+        ):
+            # Preserve the in-table interpolation and the analytic profile
+            # above the existing cutoff. A convex combination of the actual
+            # profiles preserves their weighted integrated line strength.
+            coordinate = (log_ne - upper_density) / (upper_switch - upper_density)
+            density_join_fraction = coordinate**2 * (3.0 - 2.0 * coordinate)
         outside_density_table = (
             log_ne < 0.99 * self.log_electron_density[0]
-            or log_ne > 1.01 * self.log_electron_density[-1]
+            or log_ne > upper_switch
         )
-        use_analytic = outside_density_table and (
-            interpolation == "synspec-quadratic" or high_pickering_adaptive
-        )
+        use_analytic = outside_density_table and analytic_continuation
+        use_analytic |= density_join_fraction >= 1.0
         if sparse_high_pickering:
             use_analytic = (
                 log_ne < 0.99 * self.log_electron_density[0]
@@ -136,7 +151,7 @@ class HeliumIIStarkLine:
         if (
             not use_analytic
             and log_t > 1.01 * self.log_temperature[-1]
-            and (interpolation == "synspec-quadratic" or high_pickering_adaptive)
+            and analytic_continuation
         ):
             _, beta_doppler = _synspec_helium_ii_stark_scales(
                 self,
@@ -223,7 +238,13 @@ class HeliumIIStarkLine:
         result = _linear_interpolate_with_extrapolation(
             log_offset_grid, local, query
         )
-        return np.power(10.0, result)
+        profile = np.power(10.0, result)
+        if density_join_fraction > 0.0:
+            analytic = _synspec_helium_ii_analytic_profile(
+                self, line_center_angstrom, temperature, electron_density, offset,
+            )
+            profile = (1.0 - density_join_fraction) * profile + density_join_fraction * analytic
+        return profile
 
 
 @dataclass(frozen=True)

@@ -707,3 +707,29 @@ def test_helium_ii_high_density_continuation_keeps_unit_area(interpolation):
                 assert area == pytest.approx(1.0, abs=0.03), (
                     transition, temperature, log_density
                 )
+
+
+@pytest.mark.parametrize("interpolation", ["synspec-quadratic", "series-adaptive"])
+def test_helium_ii_4686_density_join_is_continuous(interpolation):
+    path = ModelData.default().helium_ii_stark
+    if not path.exists():
+        pytest.skip("optional SYNSPEC He II profile table not downloaded")
+    line = read_helium_ii_stark_table(path, thermodynamic_interpolation=interpolation)[3, 4]
+    center = next(item.wavelength_vacuum_angstrom for item in HELIUM_II_LINES
+                  if (item.lower_principal_quantum_number, item.upper_principal_quantum_number) == (3, 4))
+    upper = line.log_electron_density[-1]
+    query = center + np.array([0.0, 1.0, 10.0, 50.0, 500.0])
+    step = 1e-6
+    for edge in (upper, 1.01 * upper):
+        before, at, after = [
+            np.log(line.frequency_profile(query, center, 38_000, 10**density))
+            for density in (edge - step, edge, edge + step)
+        ]
+        np.testing.assert_allclose(before, after, rtol=0, atol=2e-5)
+        np.testing.assert_allclose((at - before) / step, (after - at) / step, rtol=0, atol=2e-3)
+
+    offset = np.r_[0.0, np.geomspace(1e-4, 2e4, 20_000)]
+    frequency_jacobian = 2.99792458e18 / center**2
+    for density in np.linspace(upper, 1.01 * upper, 5):
+        profile = line.frequency_profile(center + offset, center, 38_000, 10**density)
+        assert 2 * trapezoid(profile, offset) * frequency_jacobian == pytest.approx(1.0, abs=0.02)

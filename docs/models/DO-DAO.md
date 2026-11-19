@@ -106,7 +106,10 @@ metals. `--quality standard` (40 depths) takes about 3 h in total.
   Mihalas (1988). NLTE ionization does not change them.
 - **Radiation field.** Hydrogen and helium share one radiation field with
   overlapping opacity and one electron-scattering term. A column-mass
-  Feautrier solver gives the transfer solution.
+  Feautrier solver gives the transfer solution. For He II transitions that
+  use transformed hydrogen profiles, the structure and rate grids sample
+  logarithmic wavelength offsets on both sides of line center. This resolves
+  narrow ultraviolet cores in the outer atmosphere.
 - **Model atoms.** He I uses the 14-level TLUSTY atom: five explicit terms and
   superlevels for n = 3–8. He II has shells through n = 32 and He III. DAO adds
   H I shells through n = 8 and H II.
@@ -118,7 +121,8 @@ metals. `--quality standard` (40 depths) takes about 3 h in total.
   the tables of Schöning & Butler (1989), and hydrogen the Stark profiles of
   Tremblay & Bergeron (2009). Above the He II table densities (log Ne > 17.17
   for the low series members) the profiles continue with SYNSPEC's
-  Doppler–Holtsmark approximation (`STARKA`), evaluated with the factor
+  Doppler–Holtsmark approximation (`STARKA`). A smooth join spans the
+  high-density extrapolation interval. The approximation uses the factor
   SYNSPEC uses for hydrogen (FAC = 2) and normalized to unit area. SYNSPEC's
   own He II call (FAC = 1) keeps only 0.48 of the line strength there.
 - **Initialization.** The calculation first converges an LTE atmosphere. It
@@ -226,6 +230,7 @@ He II 32, 3 angles, one thread). They are tested points, not a validated grid.
 | DO | 70000 | 8.0 | pure He | 1.1 h |
 | DO | 90000 | 8.0 | pure He | 1.1 h |
 | DO | 120000 | 8.0 | pure He | 1.1 h |
+| DAO | 40000 | 7.0 | 0 | 3.2 h |
 | DAO | 40000 | 8.0 | 0 | 3.4 h |
 | DAO | 60000 | 8.0 | 2 | 4.7 h |
 | DAO | 100000 | 8.0 | 2 | 1.9 h |

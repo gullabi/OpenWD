@@ -2462,6 +2462,7 @@ def _prepare_helium_line_transfer_problem(
     maximum_level: int,
     *,
     stark_table: HeliumIIStarkTable | str | Path | None,
+    resolve_transformed_core: bool = False,
 ) -> _LineTransferProblem:
     resolved_stark_table = stark_table
     if (
@@ -2491,6 +2492,14 @@ def _prepare_helium_line_transfer_problem(
                 line.wavelength_vacuum_angstrom + logarithmic_offset,
             ]
         )
+    elif resolve_transformed_core:
+        # The transformed H profiles compress wavelength offsets by Z^-5.
+        # A linear hydrogen core grid can put the entire UV core in one bin,
+        # overweighting its contribution to both radiative rates and heating.
+        center = line.wavelength_vacuum_angstrom
+        half_width = center - _line_grid(line)[0]
+        offset = np.geomspace(1.0e-5, half_width, 120)
+        wavelength = np.r_[center - offset[::-1], center, center + offset]
     else:
         wavelength = _line_grid(line)
     helium_line = next(

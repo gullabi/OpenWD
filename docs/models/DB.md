@@ -71,8 +71,9 @@ log g = 9.25.
   update [Beauchamp et al. (1997)](https://doi.org/10.1086/312961). Unsöld
   (1955) van der Waals broadening. The He I resonance series is included in
   the blanketing.
-- **He II lines.** Schöning–Butler tables from SYNSPEC, and hydrogenic
-  profiles for other members.
+- **He II lines.** Schöning–Butler tables from SYNSPEC, with a smooth join
+  to the analytic Doppler–Holtsmark profiles at high electron density.
+  Other members use hydrogenic profiles.
 
 ## Cool helium
 
