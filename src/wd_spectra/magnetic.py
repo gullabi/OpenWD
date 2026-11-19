@@ -383,6 +383,7 @@ def h2db_balmer_manifolds(
     templates: dict[int, BalmerLineTemplate] | None = None,
     maximum_upper_level: int = MAXIMUM_H2DB_BALMER_UPPER_LEVEL,
     dispersion: bool = False,
+    finite_nuclear_mass: bool = False,
 ) -> PolarizedOpacity | tuple[PolarizedOpacity, PolarizedOpacity]:
     """Return H2db Halpha--H12 manifolds at one local field.
 
@@ -409,7 +410,8 @@ def h2db_balmer_manifolds(
         if level > maximum_upper_level or level not in database.transitions_by_upper_level:
             continue
         components = database.balmer_components(
-            level, line.wavelength_vacuum_angstrom, field, atmosphere.temperature
+            level, line.wavelength_vacuum_angstrom, field, atmosphere.temperature,
+            finite_nuclear_mass=finite_nuclear_mass,
         )
         rest_frequency = LIGHT_SPEED / (line.wavelength_vacuum_angstrom * 1.0e-8)
         template = templates[level]
@@ -1032,6 +1034,8 @@ class MagneticPhysics:
     include_rwa_photoionization: bool = True
     include_magnetic_eos: bool = True
     include_centered_motion: bool = True
+    # H2db component positions for a finite proton mass (balmer_components).
+    include_finite_nuclear_mass: bool = False
     include_molecular_absorption: bool = False
     h2_h2_cia_table: H2H2CollisionInducedAbsorptionTable | None = None
     # A disk model selects this once from its maximum visible field.
@@ -1094,6 +1098,7 @@ def _balmer_manifolds(
     return h2db_balmer_manifolds(
         atmosphere, wavelength, field, physics.transitions,
         templates=templates, dispersion=dispersion,
+        finite_nuclear_mass=physics.include_finite_nuclear_mass,
     )
 
 
