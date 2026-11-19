@@ -24,11 +24,14 @@ def test_mixed_molecular_conservation_and_mass_action():
         + 2 * h.molecular_hydrogen_ion_density
         + h.negative_hydrogen_density
         + 3 * h.trihydrogen_ion_density
+        + s.helium_hydride_ion_density
     )
+    # HeH+ (default) holds one H and one He nucleus, one charge, one particle.
     nhe = (
         he.neutral_he_density
         + he.singly_ionized_he_density
         + he.doubly_ionized_he_density
+        + s.helium_hydride_ion_density
     )
     positive = (
         h.proton_density
@@ -36,6 +39,7 @@ def test_mixed_molecular_conservation_and_mass_action():
         + h.trihydrogen_ion_density
         + he.singly_ionized_he_density
         + 2 * he.doubly_ionized_he_density
+        + s.helium_hydride_ion_density
     )
     particles = (
         nh
@@ -43,6 +47,7 @@ def test_mixed_molecular_conservation_and_mass_action():
         - h.molecular_hydrogen_ion_density
         - 2 * h.trihydrogen_ion_density
         + nhe
+        - s.helium_hydride_ion_density
         + s.electron_density
     )
     np.testing.assert_allclose(nh, s.hydrogen_nuclei_density, rtol=3e-13)
@@ -93,10 +98,11 @@ def test_explicit_chemical_precision_preserves_default_and_tightens_conservation
     np.testing.assert_allclose(tight.hydrogen_nuclei_density/tight.helium_nuclei_density,.01,rtol=3e-13)
     h=tight.hydrogen_lte_state;he=tight.helium_lte_state
     charge=h.proton_density+h.molecular_hydrogen_ion_density+h.trihydrogen_ion_density
-    charge=charge+he.singly_ionized_he_density+2*he.doubly_ionized_he_density
+    hydride=tight.helium_hydride_ion_density  # HeH+: one H, one He, one charge, one particle
+    charge=charge+hydride+he.singly_ionized_he_density+2*he.doubly_ionized_he_density
     np.testing.assert_allclose(charge,tight.electron_density+h.negative_hydrogen_density,rtol=3e-13)
     particles=tight.hydrogen_nuclei_density+ tight.helium_nuclei_density+tight.electron_density
-    particles-=h.molecular_hydrogen_density+h.molecular_hydrogen_ion_density+2*h.trihydrogen_ion_density
+    particles-=h.molecular_hydrogen_density+h.molecular_hydrogen_ion_density+2*h.trihydrogen_ion_density+hydride
     np.testing.assert_allclose(particles*BOLTZMANN*t,np.broadcast_to(p,t.shape[:-1]+p.shape[-1:]),rtol=3e-13)
 
 

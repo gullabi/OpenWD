@@ -131,7 +131,8 @@ def test_optional_correction_changes_only_john_term_and_preserves_default():
     np.testing.assert_array_equal(baseline, continuum(a, wave, helium_minus_correction=None))
     np.testing.assert_array_equal(baseline, continuum(a, wave, helium_minus_correction=np.ones_like(baseline)))
     corrected = continuum(a, wave, helium_minus_correction=np.full_like(baseline, .6))
-    term = (john(wave[:,None]*1e-4, a.temperature[None,:])
+    from wd_spectra.helium import HELIUM_MINUS_FREE_FREE_DEFAULT
+    term = (john(wave[:,None]*1e-4, a.temperature[None,:], prescription=HELIUM_MINUS_FREE_FREE_DEFAULT)
             * a.helium_lte_state.neutral_he_density[None,:]
             * a.electron_density[None,:]*BOLTZMANN*a.temperature[None,:]
             / a.mass_density[None,:])

@@ -33,7 +33,10 @@ from .molecules import (
     H2_DISSOCIATION_ENERGY,
     H2_PLUS_DISSOCIATION_ENERGY,
     H3_PLUS_DISSOCIATION_ENERGY,
+    HEH_PLUS_DISSOCIATION_ENERGY_CM_INVERSE,
     H_MINUS_DETACHMENT_ENERGY,
+    helium_hydride_ion_formation_constant,
+    helium_hydride_ion_internal_partition_function,
     molecular_hydrogen_dissociation_constant,
     molecular_hydrogen_ion_dissociation_constant,
     molecular_hydrogen_ion_rovibrational_energy,
@@ -168,6 +171,8 @@ class HydrogenHeliumLTEState:
     helium_lte_state: HeliumLTEState
     microfield_model: str = "qmhd"
     chemical_model: str = "atomic-h-he-hm"
+    # H+ bound in HeH+ (also one He nucleus each); None when not modelled.
+    helium_hydride_ion_density: FloatArray | None = None
 
 
 @dataclass(frozen=True)
@@ -1936,6 +1941,12 @@ def _hydrogen_helium_number_fractions(
     return hydrogen_fraction, helium_fraction
 
 
+# Include H+ + He <-> HeH+ in the homogeneous atomic and molecular H/He EOS
+# when a caller does not choose explicitly (default since 2026-11-18; False
+# restores the earlier chemistry exactly).
+MIXED_HELIUM_HYDRIDE_ION_DEFAULT = True
+
+
 def hummer_mihalas_hydrogen_helium_lte(
     temperature: ArrayLike,
     gas_pressure: ArrayLike,
@@ -1945,6 +1956,7 @@ def hummer_mihalas_hydrogen_helium_lte(
     hydrogen_neutral_radius_scale: float = 0.5,
     helium_neutral_radius_scale: float = HM_HELIUM_NEUTRAL_RADIUS_SCALE,
     correlated_microfields: bool = True,
+    include_helium_hydride_ion: bool | None = None,
 ) -> HydrogenHeliumLTEState:
     """Solve a homogeneous atomic H/He occupation-probability EOS.
 
@@ -1957,8 +1969,15 @@ def hummer_mihalas_hydrogen_helium_lte(
     The translational pressure is ``kT (N_H + N_He + n_e)``.  As in the
     established pure-He branch, the hard-sphere term is used to truncate
     internal partition functions but is not separately added to the pressure.
+
+    With ``include_helium_hydride_ion`` the proton reacts with ground-state
+    neutral helium, H+ + He <-> HeH+, n(HeH+) = K(T) n(H+) n(He I).  HeH+
+    carries one charge and is one particle containing one H and one He
+    nucleus.  Its own opacity is not included.
     """
 
+    if include_helium_hydride_ion is None:
+        include_helium_hydride_ion = MIXED_HELIUM_HYDRIDE_ION_DEFAULT
     temperature, gas_pressure, log_ratio = np.broadcast_arrays(
         np.asarray(temperature, dtype=np.float64),
         np.asarray(gas_pressure, dtype=np.float64),
@@ -2000,6 +2019,32 @@ def hummer_mihalas_hydrogen_helium_lte(
     log_hydrogen_saha = np.log(
         np.maximum(hydrogen_saha_constant(temperature), tiny)
     )
+    hydride_constant = (
+        helium_hydride_ion_formation_constant(temperature)
+        if include_helium_hydride_ion
+        else None
+    )
+
+    def hydride_log_factor(log_ion_ratio, neutral_fraction, hydrogen_nuclei, helium_nuclei):
+        """Return ln(1 + K n_HeI) with exact H, He and HeH+ conservation.
+
+        At fixed electron density and partitions, with R = n(H+)/n(H I) and
+        f0 = n(He I)/n(He atomic), conservation of H and He nuclei with
+        n(HeH+) = K n(H+) n(He I) gives one quadratic in x = n(He I),
+        K x^2 + [b + f0 K (N_H - N_He)] x - f0 N_He b = 0, b = 1 + 1/R,
+        whose positive root cannot bind more He than exists.
+        """
+
+        b = 1.0 + np.exp(np.minimum(-log_ion_ratio, 345.0))
+        linear = b + neutral_fraction * hydride_constant * (hydrogen_nuclei - helium_nuclei)
+        constant = neutral_fraction * helium_nuclei * b
+        root = np.sqrt(linear * linear + 4.0 * hydride_constant * constant)
+        neutral = np.where(
+            linear >= 0.0,
+            2.0 * constant / np.maximum(linear + root, tiny),
+            (root - linear) / (2.0 * hydride_constant),
+        )
+        return np.log1p(hydride_constant * neutral)
 
     def composition_at_electron_density(
         electron_density: FloatArray,
@@ -2015,12 +2060,15 @@ def hummer_mihalas_hydrogen_helium_lte(
         FloatArray,
         FloatArray,
         FloatArray,
+        FloatArray,
     ]:
         nuclei_density = np.maximum(particle_density - electron_density, tiny)
         hydrogen_nuclei = hydrogen_fraction * nuclei_density
         helium_nuclei = helium_fraction * nuclei_density
         neutral_hydrogen = hydrogen_nuclei.copy()
         neutral_helium = helium_nuclei.copy()
+        hydride = np.zeros_like(nuclei_density)
+        log_hydride_factor = np.zeros_like(nuclei_density)
         hydrogen_ion_fraction = np.zeros_like(nuclei_density)
         helium_ion_fractions = np.stack(
             (
@@ -2037,7 +2085,14 @@ def hummer_mihalas_hydrogen_helium_lte(
 
         # Cross-species occupation probabilities make the neutral populations
         # a short fixed-point problem at a trial electron density.
-        for _ in range(4):
+        for _ in range(8 if include_helium_hydride_ion else 4):
+            if include_helium_hydride_ion:
+                # HeH+ binds one H and one He nucleus into one particle.
+                nuclei_density = np.maximum(
+                    particle_density - electron_density + hydride, tiny
+                )
+                hydrogen_nuclei = hydrogen_fraction * nuclei_density
+                helium_nuclei = helium_fraction * nuclei_density
             hydrogen_distribution = hydrogen_level_distribution(
                 neutral_hydrogen,
                 electron_density,
@@ -2107,14 +2162,22 @@ def hummer_mihalas_hydrogen_helium_lte(
             helium_ion_fractions = weights / np.sum(
                 weights, axis=-1, keepdims=True
             )
+            if include_helium_hydride_ion:
+                log_hydride_factor = hydride_log_factor(
+                    log_hydrogen_ion_ratio, helium_ion_fractions[..., 0],
+                    hydrogen_nuclei, helium_nuclei,
+                )
             # Preserve the tiny neutral tail and its material derivatives
             # when the ion fraction rounds close to unity.
             candidate_neutral_hydrogen = (
                 hydrogen_nuclei
-                * np.exp(-np.logaddexp(0.0, log_hydrogen_ion_ratio))
+                * np.exp(-np.logaddexp(0.0, log_hydrogen_ion_ratio + log_hydride_factor))
             )
+            if include_helium_hydride_ion:
+                ionized = hydrogen_nuclei - candidate_neutral_hydrogen
+                hydride = ionized * -np.expm1(-log_hydride_factor)
             candidate_neutral_helium = (
-                helium_nuclei * helium_ion_fractions[..., 0]
+                (helium_nuclei - hydride) * helium_ion_fractions[..., 0]
             )
             neutral_hydrogen = candidate_neutral_hydrogen
             neutral_helium = candidate_neutral_helium
@@ -2141,14 +2204,18 @@ def hummer_mihalas_hydrogen_helium_lte(
             )
             - np.log(electron_density)
         )
+        if include_helium_hydride_ion:
+            log_hydride_factor = np.log1p(hydride_constant * neutral_helium)
         hydrogen_ion_fraction = np.exp(
             log_hydrogen_ion_ratio
-            - np.logaddexp(0.0, log_hydrogen_ion_ratio)
+            - np.logaddexp(0.0, log_hydrogen_ion_ratio + log_hydride_factor)
         )
         neutral_hydrogen = hydrogen_nuclei * np.exp(
-            -np.logaddexp(0.0, log_hydrogen_ion_ratio)
+            -np.logaddexp(0.0, log_hydrogen_ion_ratio + log_hydride_factor)
         )
         proton_density = hydrogen_nuclei * hydrogen_ion_fraction
+        if include_helium_hydride_ion:
+            hydride = proton_density * np.expm1(log_hydride_factor)
         (
             neutral_partition,
             ion_partition,
@@ -2191,10 +2258,24 @@ def hummer_mihalas_hydrogen_helium_lte(
         maximum = np.max(terms, axis=-1, keepdims=True)
         weights = np.exp(np.clip(terms - maximum, -745.0, 0.0))
         helium_ion_fractions = weights / np.sum(weights, axis=-1, keepdims=True)
-        neutral_helium = helium_nuclei * helium_ion_fractions[..., 0]
-        helium_one = helium_nuclei * helium_ion_fractions[..., 1]
-        helium_two = helium_nuclei * helium_ion_fractions[..., 2]
-        charge_density = proton_density + helium_one + 2.0 * helium_two
+        if include_helium_hydride_ion:
+            log_hydride_factor = hydride_log_factor(
+                log_hydrogen_ion_ratio, helium_ion_fractions[..., 0],
+                hydrogen_nuclei, helium_nuclei,
+            )
+            neutral_hydrogen = hydrogen_nuclei * np.exp(
+                -np.logaddexp(0.0, log_hydrogen_ion_ratio + log_hydride_factor)
+            )
+            proton_density = hydrogen_nuclei * np.exp(
+                log_hydrogen_ion_ratio
+                - np.logaddexp(0.0, log_hydrogen_ion_ratio + log_hydride_factor)
+            )
+            hydride = proton_density * np.expm1(log_hydride_factor)
+        atomic_helium = helium_nuclei - hydride
+        neutral_helium = atomic_helium * helium_ion_fractions[..., 0]
+        helium_one = atomic_helium * helium_ion_fractions[..., 1]
+        helium_two = atomic_helium * helium_ion_fractions[..., 2]
+        charge_density = proton_density + hydride + helium_one + 2.0 * helium_two
         return (
             electron_density - charge_density,
             hydrogen_nuclei,
@@ -2207,6 +2288,7 @@ def hummer_mihalas_hydrogen_helium_lte(
             helium_two,
             neutral_partition,
             ion_partition,
+            hydride,
         )
 
     for _ in range(44):
@@ -2230,6 +2312,7 @@ def hummer_mihalas_hydrogen_helium_lte(
         helium_two,
         neutral_partition,
         ion_partition,
+        hydride,
     ) = composition_at_electron_density(electron_density)
     # The final He low-term populations use the occupation probabilities from
     # the final cross-perturber state, not a penultimate fixed-point iterate.
@@ -2285,7 +2368,7 @@ def hummer_mihalas_hydrogen_helium_lte(
         neutral_radius_scale=float(hydrogen_neutral_radius_scale),
     )
     helium_mean_charge = (
-        helium_one + 2.0 * helium_two
+        helium_one + 2.0 * helium_two + hydride
     ) / np.maximum(helium_nuclei, tiny)
     helium_state = HeliumLTEState(
         mass_density=np.asarray(HELIUM_MASS * helium_nuclei),
@@ -2314,6 +2397,10 @@ def hummer_mihalas_hydrogen_helium_lte(
         hydrogen_lte_state=hydrogen_state,
         helium_lte_state=helium_state,
         microfield_model=("qmhd" if correlated_microfields else "holtsmark"),
+        chemical_model=("atomic-h-he-hm-heh+" if include_helium_hydride_ion
+                        else "atomic-h-he-hm"),
+        helium_hydride_ion_density=(np.asarray(hydride)
+                                    if include_helium_hydride_ion else None),
     )
 
 
@@ -2364,8 +2451,24 @@ def _hydrogen_helium_specific_enthalpy(
         + state.helium_nuclei_density
         + state.electron_density
     )
+    hydride_energy_density = np.zeros_like(temperature)
+    if state.helium_hydride_ion_density is not None:
+        hydride = state.helium_hydride_ion_density
+        ideal_particle_density = ideal_particle_density - hydride
+        # Relative to neutral atoms: ionize H, bind H+ to He by D0, plus the
+        # rovibrational energy kT dlnQ/dlnT of the bound ion.
+        step = 1.0e-3
+        dlnq = (
+            np.log(helium_hydride_ion_internal_partition_function(temperature * (1.0 + step)))
+            - np.log(helium_hydride_ion_internal_partition_function(temperature * (1.0 - step)))
+        ) / (np.log1p(step) - np.log1p(-step))
+        binding = HEH_PLUS_DISSOCIATION_ENERGY_CM_INVERSE * PLANCK * LIGHT_SPEED
+        hydride_energy_density = hydride * (
+            HYDROGEN_IONIZATION_ENERGY - binding + BOLTZMANN * temperature * dlnq
+        )
     internal_energy_density = (
         1.5 * BOLTZMANN * temperature * ideal_particle_density
+        + hydride_energy_density
         + hydrogen.proton_density * HYDROGEN_IONIZATION_ENERGY
         + hydrogen_excitation_density
         + helium.singly_ionized_he_density
