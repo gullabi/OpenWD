@@ -1081,8 +1081,12 @@ def test_warm_trace_hydrogen_is_included_in_shared_charge_neutrality(
         )
     assert state.trace_hydrogen_state is not None
     hydrogen = state.trace_hydrogen_state
+    # H+ + He <-> HeH+ is on by default: HeH+ holds bound protons and is a
+    # singly charged ion.
+    hydride = state.helium_hydride_ion_density
+    assert hydride is not None and np.all(hydride >= 0.0)
     np.testing.assert_allclose(
-        hydrogen.neutral_h_density + hydrogen.proton_density,
+        hydrogen.neutral_h_density + hydrogen.proton_density + hydride,
         hydrogen.hydrogen_nuclei_density,
         rtol=2e-14,
     )
@@ -1091,6 +1095,7 @@ def test_warm_trace_hydrogen_is_included_in_shared_charge_neutrality(
     required = (
         state.metal_electron_density
         + hydrogen.proton_density
+        + hydride
         + host[1]
         + 2.0 * host[2]
     )

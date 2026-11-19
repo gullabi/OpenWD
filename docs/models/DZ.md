@@ -74,6 +74,8 @@ same from the command line (`--help` lists the flags).
 | `formal_maximum_metal_lines` | both | `None` (20,000; 1000 for `quick`) | Line budget of the spectrum. The structure uses the same list. |
 | `strong_line_atomic_data` | both | `"nist-asd"` | Replaces matched transitions (NIST grade C or better, f ≥ 10⁻⁴) with NIST ASD values, for the neutral and singly ionized ions of C, N, O, Na, Mg, Al, Si, P, S, Ca, Ti, Cr, Mn, Fe and Ni at 1150–9000 Å. `"stout"` keeps the Stout values (the default before 2026-11-02). |
 | `ca_ii_resonance_source` | both | `"chianti-reduced"` | Ca II H and K source function. `"lte"` uses LTE. |
+| `ca_ii_crd_frequency_dependent_source` | both | `True` | With `"chianti-reduced"`, scales the line-centre source function by B_ν(ν)/B_ν(ν₀) across the H and K profiles, so the far wings follow Kirchhoff's law. `False` uses one source value per depth at every frequency (the behaviour before 2026-11-18). |
+| `helium_hydride_ion` | DZ | `True` | Adds H⁺ + He ⇌ HeH⁺ to the trace-hydrogen ionization (D₀ of Pachucki & Komasa 2012; partition function from ExoMol ADJSAAM). It raises the electron density of cool, metal-poor DZA atmospheres and has no effect without hydrogen. `False` reproduces models before 2026-11-18. |
 | `lyman_profile_source` | both | DZ `"stark"`, DAZ `"allard"` | Lyman-line profiles. |
 | `metal_neutral_h_broadening` | DAZ | `"barklem"` | Neutral-H widths of metal lines. `"unsold"` uses Unsöld widths only. |
 | `h2_lyman_werner_lines` | DAZ | `False` | Adds H₂ Lyman and Werner lines to the final spectrum. |
@@ -115,7 +117,11 @@ The remaining fields are numerical controls. Keep their defaults.
   in complete redistribution. A photon can be re-emitted in the same line,
   move collisionally to the other 4p level, or be destroyed by electron
   collisions (CHIANTI rates; Del Zanna et al. 2021) or by branching into the
-  infrared triplet. The populations stay LTE.
+  infrared triplet. The populations stay LTE. The line emission at each
+  frequency is the line-centre source function times B_ν(ν)/B_ν(ν₀), so the
+  He-broadened far wings follow Kirchhoff's law (since 2026-11-18; before,
+  one source value was used at every frequency, which made the wings about
+  2× too bright 400 Å blueward and 2× too dark 550 Å redward at 4000 K).
 
 ### Helium hosts (DZ, DBZ)
 
@@ -136,7 +142,12 @@ The remaining fields are numerical controls. Keep their defaults.
   the charged microfield. The neutral-He excluded volume applies only to
   Rydberg levels (larger than the n* = 4 orbital).
 - **Trace hydrogen.** Hydrogen and helium lines follow the
-  [DAB](DAB.md) and [DB](DB.md) policies.
+  [DAB](DAB.md) and [DB](DB.md) policies. The trace-hydrogen ionization
+  includes H⁺ + He ⇌ HeH⁺ (since 2026-11-18): with D₀ = 14 874.213 cm⁻¹
+  (Pachucki & Komasa 2012) and the ExoMol ADJSAAM partition function,
+  K = n(HeH⁺)/[n(H⁺) n(He)] = 1.9e-22 cm³ at 6000 K. Where He is dense and
+  hydrogen supplies part of the electrons (cool, metal-poor DZA), the
+  electron density rises by up to ~80% (vMa2, τ_R ≈ 2).
 
 ### Hydrogen hosts (DAZ)
 

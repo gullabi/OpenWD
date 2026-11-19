@@ -62,6 +62,7 @@ from .eos import (
     negative_hydrogen_ionization_constant,
     trihydrogen_ion_dissociation_constant,
 )
+from .molecules import helium_hydride_ion_formation_constant
 
 
 FloatArray = NDArray[np.float64]
@@ -1437,6 +1438,10 @@ class MetalLTEState:
     metal_level_dissolution: bool = False
     log_hydrogen_abundance: float | None = None
     trace_hydrogen_state: HydrogenLTEState | None = None
+    # n(HeH+) of trace hydrogen in a helium host when H+ + He <-> HeH+ is
+    # included (``include_helium_hydride_ion``); the trace-H proton_density
+    # then counts free protons only.
+    helium_hydride_ion_density: FloatArray | None = None
     composition_mode: Literal["trace", "bulk"] = "trace"
     mass_fraction: Mapping[str, float] | None = None
     total_mass_density: FloatArray | None = None
@@ -5848,6 +5853,7 @@ def metal_lte_state(
     include_dense_helium_ionization: bool = True,
     log_hydrogen_abundance: float | None = None,
     occupation_probability_partitions: bool = False,
+    include_helium_hydride_ion: bool = True,
 ) -> MetalLTEState:
     """Solve trace-metal Saha populations and total electron density.
 
@@ -5862,6 +5868,10 @@ def metal_lte_state(
     charge-neutrality equation. This approximation is intended for warm DZA
     validation stars; it deliberately does not claim a cool mixed H/He/H2
     nonideal EOS.
+    ``include_helium_hydride_ion`` adds H+ + He <-> HeH+ to that trace-H
+    balance (helium hosts): HeH+ binds protons at fixed H nuclei, raising the
+    H ionization and the electron density where He is dense and H supplies a
+    share of the electrons (cool, metal-poor DZA atmospheres).
 
     ``occupation_probability_partitions`` (helium hosts) replaces the fixed
     spectroscopic partition cutoff by Hummer--Mihalas occupation
@@ -6015,6 +6025,15 @@ def metal_lte_state(
                 temperature,
                 correlated_microfields=True,
             )
+            # H+ + He <-> HeH+ (optional): at fixed total H nuclei the bound
+            # protons multiply the Saha ratio by 1 + K n(He I), and HeH+ is
+            # a singly charged ion in the charge balance.
+            log_hydride_factor = np.zeros_like(temperature)
+            if include_helium_hydride_ion and helium_fraction is not None:
+                log_hydride_factor = np.log1p(
+                    helium_hydride_ion_formation_constant(temperature)
+                    * helium_density * helium_fraction[0]
+                )
             for _ in range(12):
                 log_saha_ratio = (
                     np.log(hydrogen_saha_constant(temperature))
@@ -6031,7 +6050,7 @@ def metal_lte_state(
                 # as 1/(1+exp(log Saha ratio)) in log space so those harmless
                 # endpoints do not overflow before bisection rejects them.
                 candidate_neutral = trace_hydrogen_density * np.exp(
-                    -np.logaddexp(0.0, log_saha_ratio)
+                    -np.logaddexp(0.0, log_saha_ratio + log_hydride_factor)
                 )
                 neutral_hydrogen = candidate_neutral
                 distribution = hydrogen_level_distribution(
@@ -6040,12 +6059,15 @@ def metal_lte_state(
                     temperature,
                     correlated_microfields=True,
                 )
-            proton_hydrogen = trace_hydrogen_density - neutral_hydrogen
-            hydrogen_charge = proton_hydrogen
+            ionized_hydrogen = trace_hydrogen_density - neutral_hydrogen
+            proton_hydrogen = ionized_hydrogen * np.exp(-log_hydride_factor)
+            hydride_ion = ionized_hydrogen - proton_hydrogen
+            hydrogen_charge = ionized_hydrogen
             trace_hydrogen = (
                 neutral_hydrogen,
                 proton_hydrogen,
                 distribution,
+                hydride_ion,
             )
 
         host_charge = None
@@ -6291,7 +6313,7 @@ def metal_lte_state(
         )
     trace_hydrogen_state = None
     if trace_hydrogen is not None:
-        neutral_hydrogen, proton_hydrogen, distribution = trace_hydrogen
+        neutral_hydrogen, proton_hydrogen, distribution, hydride_ion = trace_hydrogen
         trace_hydrogen_state = HydrogenLTEState(
             mass_density=np.asarray(HYDROGEN_MASS * trace_hydrogen_density),
             hydrogen_nuclei_density=np.asarray(trace_hydrogen_density),
@@ -6325,6 +6347,11 @@ def metal_lte_state(
         ),
         log_hydrogen_abundance=log_hydrogen_abundance,
         trace_hydrogen_state=trace_hydrogen_state,
+        helium_hydride_ion_density=(
+            np.asarray(hydride_ion)
+            if trace_hydrogen is not None and include_helium_hydride_ion
+            else None
+        ),
         metal_level_dissolution=bool(occupation_probability_partitions),
         atomic_database=atomic_database,
         neutral_perturber_number_density=(

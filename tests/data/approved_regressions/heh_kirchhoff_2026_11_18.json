@@ -1,0 +1,129 @@
+{
+ "reason": "DZConfig defaults to helium_hydride_ion=True; DZConfig and DAZConfig default to ca_ii_crd_frequency_dependent_source=True",
+ "base_main": "f71ee9e4d8b3c55fd81dc1804073c282340c276b",
+ "capture_recipe": "research/capture_heh_kirchhoff_default_controls.py",
+ "capture_recipe_sha256": "1ca181405896c83e70c8301638d17d0cc8ec6fc759049b52dff597d9c513b8cb",
+ "source_sha256_at_capture": {
+  "src/wd_spectra/molecules.py": "a3527fa0c0dbbd8e3ee285e2e0417387f36e3cfbb2925787f67cb47124018264",
+  "src/wd_spectra/metals.py": "228731e6aae453ad7305fd483b428134e1f09a5332792264a6a8bb34034f23d2",
+  "src/wd_spectra/atmosphere.py": "ad15bc7189e6d8ed21a88dc6c1dc686c0058f6b872465623d07ad66398fd1bd3",
+  "src/wd_spectra/spectrum.py": "3a59145097a6cbd0f584c1c6542c83ea6de73bfcaffbb14e48bf4f390697c1d0",
+  "src/wd_spectra/cool_metal_nlte.py": "b094fa556955cb290a4521fd8b7b1e7595819967a0a03816c59fa053822bef56",
+  "src/wd_spectra/models/stellar.py": "968f589b8ca95e186c4d7db3af3193f95669dc840ec3deba76df1dedcca69bfc",
+  "src/wd_spectra/models/daz.py": "4bdf7cb4c193a6a062de2ebb6b75c080d0b17106c6767811208d5f8aa08da5d1",
+  "src/wd_spectra/models/common.py": "91248b8c9af67e8deaa5bc1f5682b242056843319b5c4c5fa448db9ccaaf1b42",
+  "research/capture_heh_kirchhoff_default_controls.py": "1ca181405896c83e70c8301638d17d0cc8ec6fc759049b52dff597d9c513b8cb"
+ },
+ "python": "3.9.16",
+ "numpy": "1.26.4",
+ "replaced": [
+  "dz-pg1225",
+  "dz-j0738"
+ ],
+ "retained_byte_for_byte": [
+  "daz-g149_28",
+  "daz-galex1931"
+ ],
+ "retained_note": "DAZ controls move by at most 0.07% under the new Ca II CRD source and pass their existing comparisons with the new defaults, so the approved files are kept.",
+ "frozen_atmospheres_and_grids_unchanged": true,
+ "tolerances_changed": false,
+ "cold_canary": {
+  "case": "dz-pg1225",
+  "status": "passed",
+  "elapsed_seconds": 4679,
+  "inputs_unchanged_during_run": true,
+  "note": "fresh cold start with the new defaults passes the existing cold reference and all equilibrium checks"
+ },
+ "comparisons": {
+  "dz-pg1225": {
+   "family": "DZ",
+   "frozen_structure": "tests/data/spectral_regressions/dz-pg1225.npz",
+   "frozen_structure_sha256": "d425e8efde9bccd3c133b83bf31fc9c37da00e6525a50eb34b7828fa8b70e87c",
+   "previous_control_sha256": "bca2df0afabfd8e9190080523dc94b3a1dcfad329578f435d54e1290ebe6b2f9",
+   "new_control_sha256": "322b677dc8ea7acb6e84fb74b5e4bb90c1b45eee057be146a3cdb37c2af20293",
+   "wavelength_sha256": "feb7afd18871f4ad6c28acc9a636550698a4424a3e340083c66f6b9da3b876ec",
+   "previous_settings": {
+    "helium_hydride_ion": false,
+    "ca_ii_crd_frequency_dependent_source": false
+   },
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 2527,
+   "maximum_relative_change": -0.0059577657790858,
+   "maximum_change_wavelength_angstrom": 1221.0,
+   "pixels_changed_over_0p1_percent": 1618,
+   "integrated_relative_change": {
+    "1150-3000": -0.0006427492159385379,
+    "3000-4000": -0.001003509825620869,
+    "4000-7000": -0.001060356518664458,
+    "7000-300000": -0.0008265289512733639
+   }
+  },
+  "dz-j0738": {
+   "family": "DZ",
+   "frozen_structure": "tests/data/spectral_regressions/dz-j0738.npz",
+   "frozen_structure_sha256": "b3f69d5870b3f812015eed77bcbe14aa7d448b4de109a7eca2c344c6df806c42",
+   "previous_control_sha256": "7a88b7e7f1e9d1ba8f27b7aeb8b8060ee4f0a7ce14d06744e286f1e43fd90622",
+   "new_control_sha256": "504cd76d2f1e08d7298e9dcdefe5f0d20ad56f11c78ce28984f5fc7cf2c2c00e",
+   "wavelength_sha256": "feb7afd18871f4ad6c28acc9a636550698a4424a3e340083c66f6b9da3b876ec",
+   "previous_settings": {
+    "helium_hydride_ion": false,
+    "ca_ii_crd_frequency_dependent_source": false
+   },
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 2466,
+   "maximum_relative_change": 0.00036871557120088383,
+   "maximum_change_wavelength_angstrom": 1215.0,
+   "pixels_changed_over_0p1_percent": 0,
+   "integrated_relative_change": {
+    "1150-3000": 2.0676213688668079e-07,
+    "3000-4000": -7.76344531362308e-08,
+    "4000-7000": 3.134451859323884e-08,
+    "7000-300000": -9.501071780046479e-08
+   }
+  },
+  "daz-g149_28": {
+   "family": "DAZ",
+   "frozen_structure": "tests/data/daz_regressions/g149_28.npz",
+   "frozen_structure_sha256": "e35b9a32a0f1c5f8867b2c19dd546150010e96127b04aaa69259d07a3b042560",
+   "previous_control_sha256": "4b40b1e28d4a70cb8dd1d848ac2d6c0ec8448dafd64abb11da247f36104fca35",
+   "new_control_sha256": "e8e2b8150310b6edeaa09a4303b5582473637cc553636ecdb8cda0f53190ce5c",
+   "wavelength_sha256": "2d1836b22e9330495fdaf71b07f9f49715139da9fdcd418fced94ae8c1fca09f",
+   "previous_settings": {
+    "ca_ii_crd_frequency_dependent_source": false
+   },
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 2841,
+   "maximum_relative_change": -0.0006936206212616591,
+   "maximum_change_wavelength_angstrom": 3893.5,
+   "pixels_changed_over_0p1_percent": 0,
+   "integrated_relative_change": {
+    "3000-4000": -0.00023129323777848157,
+    "4000-7000": -0.00015402310571754576
+   }
+  },
+  "daz-galex1931": {
+   "family": "DAZ",
+   "frozen_structure": "tests/data/daz_regressions/galex1931.npz",
+   "frozen_structure_sha256": "9b418bbce06c68494d1a8a3204d7e6b78839e77af0dada2a0b74c759bf4bc958",
+   "previous_control_sha256": "8ba8c055903c7e17de98cbb0f527dae46faadad8bb4bebd134a8d67a35dd93dc",
+   "new_control_sha256": "3df44bbf22af5a57fb919c496c7bc8020f382240fb3fbc748d75344bed9b5a97",
+   "wavelength_sha256": "38f94b107e85ca1e511e71e86e56316bf502d0a57cd862de3119716f00ebf092",
+   "previous_settings": {
+    "ca_ii_crd_frequency_dependent_source": false
+   },
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 32029,
+   "maximum_relative_change": -0.00045449591671176126,
+   "maximum_change_wavelength_angstrom": 3894.828736,
+   "pixels_changed_over_0p1_percent": 0,
+   "integrated_relative_change": {
+    "3000-4000": -0.00019621232167351345,
+    "4000-7000": -5.851293622679816e-05
+   }
+  }
+ }
+}

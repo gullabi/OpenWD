@@ -179,6 +179,7 @@ def ca_ii_crd_resonance_source_functions(
     n_angle: int,
     half_width_angstrom: float = 800.0,
     points_per_side: int = 160,
+    frequency_dependent_source: bool = True,
 ) -> dict[tuple[int, int], FloatArray]:
     r"""Solve the Ca II H and K line source functions in complete redistribution.
 
@@ -208,6 +209,16 @@ def ca_ii_crd_resonance_source_functions(
     outside its range), so background sampling and wing coverage still need
     separate convergence checks. Returned source functions are per unit
     frequency, one ``(n_depth,)`` array per line key.
+
+    ``frequency_dependent_source``: the solved ``S_j`` is the source function
+    at the line centre, and line emission at frequency ``nu`` is
+    ``kappa_j(nu) S_j B_nu(nu, T) / B_nu(nu_j, T)``.  This is the two-level
+    non-LTE source function ``(b_u/b_l) B_nu(nu, T)`` in the Wien limit the
+    equations already assume (no stimulated emission), and it obeys
+    Kirchhoff's law in the far quasi-static wings of the He-broadened lines,
+    which span hundreds of angstroms (default since 2026-11-18).  ``False``
+    reproduces the earlier behaviour: the line-centre value at every
+    frequency.
     """
 
     from ._linear_scattering import linear_lambda_operator
@@ -271,6 +282,10 @@ def ca_ii_crd_resonance_source_functions(
             normalization, np.finfo(np.float64).tiny
         )[np.newaxis, :]
 
+    center_planck = {
+        key: _planck_frequency(np.asarray([centers[key]]), temperature)[0]
+        for key in keys
+    }
     identity = np.eye(n_depth)
     # Jbar_i = gbar_i + sum_j Gbar_ij S_j
     gbar = {key: np.zeros(n_depth) for key in keys}
@@ -289,14 +304,13 @@ def ca_ii_crd_resonance_source_functions(
                     continue
                 gbar[i] += weight_i * thermal
                 for j in keys:
+                    emissivity = lines[j][k] / total[k]
+                    if frequency_dependent_source:
+                        emissivity = emissivity * planck[k] / center_planck[j]
                     Gbar[(i, j)] += weight_i[:, np.newaxis] * (
-                        response * (lines[j][k] / total[k])[np.newaxis, :]
+                        response * emissivity[np.newaxis, :]
                     )
 
-    center_planck = {
-        key: _planck_frequency(np.asarray([centers[key]]), temperature)[0]
-        for key in keys
-    }
     matrix = np.zeros((2 * n_depth, 2 * n_depth))
     rhs = np.zeros(2 * n_depth)
     for row, i in enumerate(keys):

@@ -257,6 +257,7 @@ def _ca_ii_crd_emission_source(
     probabilities,
     line_extinction,
     n_angle,
+    frequency_dependent_source=True,
 ):
     """Return the thermal-emission source including CRD Ca II H/K lines.
 
@@ -273,13 +274,31 @@ def _ca_ii_crd_emission_source(
     sources = ca_ii_crd_resonance_source_functions(
         atmosphere, wavelength, absorption, scattering, line_extinction,
         probabilities, n_angle=n_angle,
+        frequency_dependent_source=frequency_dependent_source,
     )
     lines = line_extinction(wavelength)
-    per_angstrom = LIGHT_SPEED / (wavelength * 1.0e-8) ** 2 * 1.0e-8
     line_sum = sum(lines.values())
-    emission = sum(
-        lines[key] * sources[key][np.newaxis, :] for key in lines
-    ) * per_angstrom[:, np.newaxis]
+    if frequency_dependent_source:
+        # Line emission kappa_L S_L B_nu(nu)/B_nu(nu_L): per unit wavelength
+        # this is kappa_L (S_L / B_nu(nu_L)) B_lambda(lambda, T), so the far
+        # wings keep the local Planck shape (Kirchhoff) with the line's
+        # non-LTE departure ratio.
+        from .cool_metal_nlte import _planck_frequency
+
+        emission = sum(
+            lines[key] * (
+                sources[key] / _planck_frequency(
+                    np.asarray([probabilities[key].wavelength_vacuum_angstrom]),
+                    np.asarray(atmosphere.temperature, dtype=np.float64),
+                )[0]
+            )[np.newaxis, :] * planck
+            for key in lines
+        )
+    else:
+        per_angstrom = LIGHT_SPEED / (wavelength * 1.0e-8) ** 2 * 1.0e-8
+        emission = sum(
+            lines[key] * sources[key][np.newaxis, :] for key in lines
+        ) * per_angstrom[:, np.newaxis]
     return np.ascontiguousarray(
         ((absorption - line_sum) * planck + emission)
         / np.maximum(absorption, np.finfo(np.float64).tiny)
@@ -383,6 +402,7 @@ def synthesize_balmer_spectrum(
     ca_ii_helium_impact_scale: float = 1.0,
     ca_ii_resonance_scattering_fraction: float = 0.0,
     ca_ii_resonance_collision_strengths: str | None = None,
+    ca_ii_crd_frequency_dependent_source: bool = True,
     include_dense_helium_metal_ionization: bool = True,
     minimum_metal_oscillator_strength: float = 1.0e-4,
     maximum_metal_lines: int | None = 20_000,
@@ -766,6 +786,7 @@ def synthesize_balmer_spectrum(
         ca_ii_probabilities,
         ca_ii_line_extinction if ca_ii_probabilities is not None else None,
         n_angle,
+        frequency_dependent_source=ca_ii_crd_frequency_dependent_source,
     )
     if h2_kappa is not None:
         # The H2 lines are pure extinction with source S = (S/B) B, folded into
@@ -1029,6 +1050,7 @@ def synthesize_hydrogen_spectrum(
     ca_ii_helium_impact_scale: float = 1.0,
     ca_ii_resonance_scattering_fraction: float = 0.0,
     ca_ii_resonance_collision_strengths: str | None = None,
+    ca_ii_crd_frequency_dependent_source: bool = True,
     include_dense_helium_metal_ionization: bool = True,
     minimum_metal_oscillator_strength: float = 1.0e-4,
     maximum_metal_lines: int | None = 20_000,
@@ -1087,6 +1109,7 @@ def synthesize_hydrogen_spectrum(
         ca_ii_resonance_collision_strengths=(
             ca_ii_resonance_collision_strengths
         ),
+        ca_ii_crd_frequency_dependent_source=ca_ii_crd_frequency_dependent_source,
         include_dense_helium_metal_ionization=include_dense_helium_metal_ionization,
         minimum_metal_oscillator_strength=minimum_metal_oscillator_strength,
         maximum_metal_lines=maximum_metal_lines,
@@ -1139,6 +1162,8 @@ def synthesize_helium_spectrum(
     ca_ii_resonance_collision_strengths: str | None = None,
     c2_cross_section_table: object | None = None,
     include_dense_helium_metal_ionization: bool = True,
+    include_helium_hydride_ion: bool = True,
+    ca_ii_crd_frequency_dependent_source: bool = True,
     metal_occupation_probability_partitions: bool = False,
     minimum_metal_oscillator_strength: float = 1.0e-4,
     maximum_metal_lines: int | None = 20_000,
@@ -1229,6 +1254,7 @@ def synthesize_helium_spectrum(
             metal_database,
             metal_abundances,
             include_dense_helium_ionization=include_dense_helium_metal_ionization,
+            include_helium_hydride_ion=include_helium_hydride_ion,
             log_hydrogen_abundance=log_hydrogen_abundance,
             occupation_probability_partitions=metal_occupation_probability_partitions,
         )
@@ -1494,6 +1520,7 @@ def synthesize_helium_spectrum(
         ca_ii_probabilities,
         ca_ii_line_extinction if ca_ii_probabilities is not None else None,
         n_angle,
+        frequency_dependent_source=ca_ii_crd_frequency_dependent_source,
     )
     if int(transfer_depth_refinement) != transfer_depth_refinement or transfer_depth_refinement < 1:
         raise ValueError("transfer_depth_refinement must be a positive integer")

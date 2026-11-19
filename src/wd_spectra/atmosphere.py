@@ -976,6 +976,7 @@ def helium_continuum_atmosphere(
     metal_abundances: Mapping[str, float] | None = None,
     log_hydrogen_abundance: float | None = None,
     include_dense_helium_metal_ionization: bool = True,
+    include_helium_hydride_ion: bool = True,
     metal_occupation_probability_partitions: bool = False,
     helium_reos3_table: HeliumREOS3Table | None = None,
     depth_concentration: float = 0.0,
@@ -1055,6 +1056,7 @@ def helium_continuum_atmosphere(
                 include_dense_helium_ionization=(
                     include_dense_helium_metal_ionization
                 ),
+                include_helium_hydride_ion=include_helium_hydride_ion,
                 log_hydrogen_abundance=log_hydrogen_abundance,
             )
             point = atmosphere_with_metal_electrons(point, metal_state)
@@ -1118,6 +1120,7 @@ def helium_continuum_atmosphere(
             occupation_probability_partitions=metal_occupation_probability_partitions,
             reference_species="He",
             include_dense_helium_ionization=include_dense_helium_metal_ionization,
+            include_helium_hydride_ion=include_helium_hydride_ion,
             log_hydrogen_abundance=log_hydrogen_abundance,
         )
         provisional = atmosphere_with_metal_electrons(provisional, metal_state)
@@ -1975,6 +1978,7 @@ def radiative_equilibrium_helium_atmosphere(
     unified_allard_table: AllardUnifiedLymanTable | None = None,
     allard_stark_weight: float = 0.5,
     include_dense_helium_metal_ionization: bool = True,
+    include_helium_hydride_ion: bool = True,
     metal_occupation_probability_partitions: bool = False,
     include_metal_lines: bool = True,
     minimum_metal_oscillator_strength: float = 1.0e-2,
@@ -2254,6 +2258,7 @@ def radiative_equilibrium_helium_atmosphere(
             include_dense_helium_metal_ionization=(
                 include_dense_helium_metal_ionization
             ),
+            include_helium_hydride_ion=include_helium_hydride_ion,
         )
     relaxation_depth = seed.rosseland_optical_depth.copy()
     structure_helium_i_lines = HELIUM_I_LINES
@@ -2408,6 +2413,7 @@ def radiative_equilibrium_helium_atmosphere(
             include_dense_helium_ionization=(
                 include_dense_helium_metal_ionization
             ),
+            include_helium_hydride_ion=include_helium_hydride_ion,
         )
         ion_stage_weight = {
             (element, charge): float(np.max(
@@ -2633,6 +2639,7 @@ def radiative_equilibrium_helium_atmosphere(
                 include_dense_helium_ionization=(
                     include_dense_helium_metal_ionization
                 ),
+                include_helium_hydride_ion=include_helium_hydride_ion,
                 log_hydrogen_abundance=log_hydrogen_abundance,
             )
             result = atmosphere_with_metal_electrons(result, metal_state)
@@ -2697,6 +2704,7 @@ def radiative_equilibrium_helium_atmosphere(
                 include_dense_helium_ionization=(
                     include_dense_helium_metal_ionization
                 ),
+                include_helium_hydride_ion=include_helium_hydride_ion,
                 log_hydrogen_abundance=log_hydrogen_abundance,
             )
             if metal_photoionization_database is not None:

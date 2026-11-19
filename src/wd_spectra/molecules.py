@@ -12,6 +12,7 @@ from numpy.typing import ArrayLike, NDArray
 from .constants import (
     BOLTZMANN,
     ELECTRON_MASS,
+    HELIUM_MASS,
     HYDROGEN_MASS,
     LIGHT_SPEED,
     PI,
@@ -479,6 +480,32 @@ H3_PLUS_NUCLEAR_SPIN_STATES = 8.0
 # Electron affinity for H + e <-> H-.
 H_MINUS_DETACHMENT_ENERGY = 0.754195 * 1.602176634e-12
 
+# HeH+ (X 1Sigma+), H+ + He <-> HeH+.  Dissociation energy of the ground
+# rovibrational level (v=0, J=0) of 4HeH+ into He(1s^2) + H+:
+# Pachucki & Komasa (2012, J. Chem. Phys. 137, 204314), Table II, total
+# D0 = 14874.213(10) cm^-1 (nonadiabatic, relativistic and QED corrections).
+HEH_PLUS_DISSOCIATION_ENERGY_CM_INVERSE = 14874.213
+HEH_PLUS_DISSOCIATION_ENERGY = (
+    HEH_PLUS_DISSOCIATION_ENERGY_CM_INVERSE * PLANCK * LIGHT_SPEED
+)
+# Rovibrational partition function of 4HeH+ with energies measured from
+# (v=0, J=0): ExoMol ADJSAAM (Amaral et al. 2019; 183 bound and quasi-bound
+# states; file 4He-1H_p__ADJSAAM.pf, tabulated to 9000 K) divided by 4, the
+# ExoMol degeneracy convention: ExoMol Q -> 4 as T -> 0, and at 1000 K
+# ExoMol/4 = 21.843 equals the direct sum over the Pachucki & Komasa (2012)
+# Table III levels (21.843; v <= 5, J <= 14, complete at that temperature).
+# The 4000-5500 K and 8000 K entries agree with a smooth interpolation of the
+# others to 1-4%.  The chemistry convention used here is Q(H+) = Q(He) = 1,
+# without nuclear-spin factors, as for H2 and H3+ above.
+HEH_PLUS_PARTITION_TEMPERATURE = np.array(
+    [1000.0, 2000.0, 3000.0, 4000.0, 4500.0, 5000.0, 5500.0, 6000.0,
+     6500.0, 7000.0, 8000.0]
+)
+HEH_PLUS_PARTITION_FUNCTION = np.array(
+    [87.3721, 203.0203, 379.1861, 631.3617, 785.2527, 955.0809, 1138.2327,
+     1331.9920, 1533.7613, 1741.1844, 2165.0536]
+) / 4.0
+
 # Characteristic rigid-rotor and harmonic-oscillator temperatures of the
 # H2+ X 2Sigma_g+ ground state.
 H2_PLUS_ROTATIONAL_TEMPERATURE = 43.1
@@ -652,6 +679,53 @@ def trihydrogen_ion_dissociation_constant(
             / H3_PLUS_NUCLEAR_SPIN_STATES
         )
         - H3_PLUS_DISSOCIATION_ENERGY / (BOLTZMANN * temperature)
+    )
+    limits = np.log([np.finfo(np.float64).tiny, np.finfo(np.float64).max])
+    return np.exp(np.clip(logarithm, limits[0], limits[1]))
+
+
+def helium_hydride_ion_internal_partition_function(temperature: ArrayLike) -> FloatArray:
+    r"""Return the 4HeH+ rovibrational partition function (zero at v=0, J=0).
+
+    Log-log interpolation of the tabulated ExoMol values (see
+    ``HEH_PLUS_PARTITION_FUNCTION``).  Below 1000 K the rigid-rotor limit
+    ``Q ~ T`` is used down to ``Q = 1``; above 8000 K the last logarithmic
+    slope is continued.  HeH+ matters only where He is dense and H is partly
+    ionized, i.e. 4000-8000 K in cool helium-rich atmospheres.
+    """
+
+    temperature = _positive_temperature(temperature)
+    log_t = np.log(HEH_PLUS_PARTITION_TEMPERATURE)
+    log_q = np.log(HEH_PLUS_PARTITION_FUNCTION)
+    x = np.log(temperature)
+    value = np.interp(x, log_t, log_q)
+    low = x < log_t[0]
+    value = np.where(low, np.maximum(log_q[0] + (x - log_t[0]), 0.0), value)
+    slope = (log_q[-1] - log_q[-2]) / (log_t[-1] - log_t[-2])
+    value = np.where(x > log_t[-1], log_q[-1] + slope * (x - log_t[-1]), value)
+    return np.exp(value)
+
+
+def helium_hydride_ion_formation_constant(temperature: ArrayLike) -> FloatArray:
+    r"""Return ``n(HeH+) / (n(H+) n(He))`` in cm^3 for H+ + He <-> HeH+.
+
+    Ideal translational equilibrium with the reduced mass of He and a proton,
+    ``K = (h^2 / 2 pi mu k T)^{3/2} Q_HeH+(T) exp(D0 / k T)``, with
+    ``Q(H+) = Q(He) = 1``.  At 6000 K, K = 1.9e-22 cm^3, so at the
+    photospheric He densities of cool DZ white dwarfs (1e21-3e22 cm^-3)
+    HeH+ holds a fraction comparable to, or larger than, the free protons.
+    """
+
+    temperature = _positive_temperature(temperature)
+    proton_mass = HYDROGEN_MASS - ELECTRON_MASS
+    reduced_mass = HELIUM_MASS * proton_mass / (HELIUM_MASS + proton_mass)
+    translation = (
+        2.0 * PI * reduced_mass * BOLTZMANN * temperature / PLANCK**2
+    ) ** 1.5
+    logarithm = (
+        np.log(helium_hydride_ion_internal_partition_function(temperature))
+        - np.log(translation)
+        + HEH_PLUS_DISSOCIATION_ENERGY / (BOLTZMANN * temperature)
     )
     limits = np.log([np.finfo(np.float64).tiny, np.finfo(np.float64).max])
     return np.exp(np.clip(logarithm, limits[0], limits[1]))
