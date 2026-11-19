@@ -247,6 +247,18 @@ class DZConfig:
     # "nist-asd" (default) replaces exactly matched Stout transitions (UV
     # included) with evaluated NIST values; "stout" keeps the Stout values.
     strong_line_atomic_data: Literal["stout", "nist-asd"] = "nist-asd"
+    # H+ + He <-> HeH+ in the trace-hydrogen ionization balance (structure and
+    # synthesis).  HeH+ binds protons where He is dense, raising the H
+    # ionization and the electron density of cool, metal-poor DZA
+    # atmospheres; it has no effect without hydrogen.  Default since
+    # 2026-11-18; False reproduces the earlier models.
+    helium_hydride_ion: bool = True
+    # Ca II H&K complete redistribution (ca_ii_resonance_source
+    # "chianti-reduced"): the line-centre source function scaled by
+    # B_nu(nu)/B_nu(nu_0) across the He-broadened profile, so the far wings
+    # obey Kirchhoff's law.  Default since 2026-11-18; False keeps one source
+    # value per depth at every frequency (the earlier models).
+    ca_ii_crd_frequency_dependent_source: bool = True
 
 
 # Trihydrogen-cation partition function of the DA and DAZ molecular EOS.
@@ -1747,6 +1759,7 @@ def compute_dz(
             metal_line_opacity_sampling_resolution=_STRUCTURE_OPACITY_SAMPLING_RESOLUTION,
             depth_concentration=config.photospheric_depth_concentration,
             include_dense_helium_metal_ionization=True,
+            include_helium_hydride_ion=config.helium_hydride_ion,
             metal_occupation_probability_partitions=True,
             hydrogen_self_broadening_prescription=(
                 self_broadening_prescription
@@ -1806,6 +1819,8 @@ def compute_dz(
         ca_ii_he_profile_table=ca_ii_he,
         ca_i_he_profile_table=ca_i_he,
         include_dense_helium_metal_ionization=True,
+        include_helium_hydride_ion=config.helium_hydride_ion,
+        ca_ii_crd_frequency_dependent_source=config.ca_ii_crd_frequency_dependent_source,
         metal_occupation_probability_partitions=True,
         minimum_metal_oscillator_strength=_METAL_MINIMUM_OSCILLATOR_STRENGTH,
         maximum_metal_lines=formal_lines,
@@ -1861,6 +1876,15 @@ def compute_dz(
                 na_i_he.source if na_i_he is not None else False
             ),
             "si_ii_kurucz_transitions": True,
+            "helium_hydride_ion": (
+                "H+ + He <-> HeH+ (D0 Pachucki & Komasa 2012; Q ExoMol ADJSAAM)"
+                if config.helium_hydride_ion else False
+            ),
+            "ca_ii_crd_source": (
+                "line-centre S scaled by B_nu(nu)/B_nu(nu0) (Kirchhoff wings)"
+                if config.ca_ii_crd_frequency_dependent_source
+                else "one source value per depth"
+            ),
             "maximum_metal_charge": config.maximum_metal_charge,
             "photoionization": (
                 "level-resolved TOPbase for the bundled model-atom ions; "

@@ -270,3 +270,46 @@ def test_ca_ii_crd_quadrature_refinement_reduces_source_error(
     # it does not establish either extent or depth convergence.
     assert errors[1] < 0.4 * errors[0]
     assert errors[2] < 0.4 * errors[1]
+
+
+def test_ca_ii_crd_default_source_obeys_kirchhoff_in_lte():
+    from wd_spectra.spectrum import _ca_ii_crd_emission_source, planck_lambda_angstrom
+
+    atmosphere, wavelength, absorption, lines, probabilities = _isothermal_crd_inputs(
+        0.0, line_half_width=40.0
+    )
+    planck = planck_lambda_angstrom(
+        wavelength[:, np.newaxis], atmosphere.temperature[np.newaxis, :]
+    )
+    scattering = np.zeros_like(absorption)
+    kirchhoff = _ca_ii_crd_emission_source(
+        atmosphere, wavelength, absorption, scattering, planck, probabilities,
+        lines, 3, frequency_dependent_source=True,
+    )
+    np.testing.assert_allclose(kirchhoff, planck, rtol=1e-10)
+    legacy = _ca_ii_crd_emission_source(
+        atmosphere, wavelength, absorption, scattering, planck, probabilities,
+        lines, 3, frequency_dependent_source=False,
+    )
+    # One source value per depth: wrong by several per cent 130 A from K.
+    far = np.argmin(np.abs(wavelength - 3800.0))
+    assert abs(legacy[far, -1] / planck[far, -1] - 1.0) > 0.02
+
+
+def test_ca_ii_crd_frequency_dependent_source_keeps_lte_line_centre():
+    from wd_spectra.cool_metal_nlte import (
+        _planck_frequency,
+        ca_ii_crd_resonance_source_functions,
+    )
+
+    atmosphere, wavelength, absorption, lines, probabilities = _isothermal_crd_inputs(
+        0.5, line_half_width=40.0
+    )
+    sources = ca_ii_crd_resonance_source_functions(
+        atmosphere, wavelength, absorption, np.zeros_like(absorption),
+        lines, probabilities, n_angle=3, frequency_dependent_source=True,
+    )
+    planck = _planck_frequency(np.asarray([3934.8]), atmosphere.temperature)[0]
+    ratio = sources[(1, 5)] / planck
+    assert ratio[-1] == pytest.approx(1.0, rel=0.02)
+    assert np.all(ratio > 0.0) and np.all(ratio <= 1.0 + 1e-9)

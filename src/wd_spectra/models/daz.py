@@ -92,6 +92,11 @@ class DAZConfig:
     # "nist-asd" (default) replaces exactly matched Stout transitions with
     # evaluated NIST values; "stout" keeps the Stout values.
     strong_line_atomic_data: Literal["stout", "nist-asd"] = "nist-asd"
+    # Ca II H&K complete redistribution: line emission follows the local
+    # Planck shape across the profile (S_line B_nu(nu)/B_nu(nu0)), so the
+    # wings obey Kirchhoff's law (default since 2026-11-18).  False uses the
+    # line-centre source value at every frequency (the earlier behaviour).
+    ca_ii_crd_frequency_dependent_source: bool = True
 
 
 def compute_daz(
@@ -263,6 +268,7 @@ def compute_daz(
         ca_ii_resonance_collision_strengths=(
             str(data.ca_ii_chianti_collisions) if reduced_ca else None
         ),
+        ca_ii_crd_frequency_dependent_source=config.ca_ii_crd_frequency_dependent_source,
         n_angle=resolution.n_angle,
         **shared,
     )
@@ -298,6 +304,11 @@ def compute_daz(
             atmosphere_solver="adaptive-newton",
             ca_ii_resonance_source=config.ca_ii_resonance_source,
             ca_ii_resonance_source_applied_in_structure=False,
+            ca_ii_crd_source=(
+                "line-centre S scaled by B_nu(nu)/B_nu(nu0) (Kirchhoff wings)"
+                if config.ca_ii_crd_frequency_dependent_source
+                else "one source value per depth"
+            ),
             atmosphere_mode=(
                 "relaxed" if relax_atmosphere else "checkpoint formal synthesis"
             ),

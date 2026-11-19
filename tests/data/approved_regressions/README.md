@@ -57,6 +57,21 @@ the 3e-3 bound). `stark_area_2026_11_11/cold/da-5000.npz` is the CI cold start,
 verified and re-synthesized by `research/capture_stark_area_cold_controls.py`;
 its manifest records the source certificate and the change.
 
+On 2026-11-18 two cool-metal defaults changed. DZConfig now includes HeH+
+(H+ + He <-> HeH+, Pachucki & Komasa 2012 D0 and the ExoMol partition
+function) in the trace-hydrogen ionization balance. DZConfig and DAZConfig
+also emit Ca II H&K complete-redistribution light as
+kappa_L S_L B_nu(nu)/B_nu(nu0), which keeps Kirchhoff's law across the broadened
+wings instead of applying the line-centre source function at every frequency.
+That re-approved `dz-pg1225` (1618 of 2527 significant pixels moved by more
+than 0.1%; at most -0.60%, at 1221 A; integrated about -0.1%) and `dz-j0738`
+(at most 0.04%). `research/capture_heh_kirchhoff_default_controls.py` wrote
+them after first showing that both options off reproduce the previous
+controls. The DAZ controls move by at most 0.07% and stay within tolerance,
+so they are retained byte for byte. The `dz-pg1225` cold canary passes with
+the new defaults against its existing reference.
+[Provenance](heh_kirchhoff_2026_11_18.json) records the hashes and band changes.
+
 `stark_area_2026_11_11/cold/`, `cool_h_chemistry_2026_11_10/cold/`,
 `montreal_h_radius_2026_10_27/cold/` and `cold/` (newest first) supply comparison outputs for
 the protected cold-start canaries. Those tests always calculate a fresh

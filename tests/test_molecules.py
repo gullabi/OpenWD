@@ -180,3 +180,31 @@ def test_borysow_cia_declining_tail_is_continuous_and_uses_terminal_slope(tmp_pa
             1e8 / frequencies[:2], np.array([100., 150., 200.])))
     with pytest.raises(ValueError, match="declining terminal"):
         replace(table, absorption_coefficient=table.absorption_coefficient[::-1])
+
+
+def test_helium_hydride_partition_matches_pachucki_komasa_level_sum():
+    from wd_spectra.molecules import (
+        helium_hydride_ion_formation_constant,
+        helium_hydride_ion_internal_partition_function,
+    )
+
+    # Pachucki & Komasa (2012) Table III, v = 0-2, J = 0-14 (cm^-1 below
+    # He + H+); at 1000 K the omitted v >= 3 levels contribute < 1e-5.
+    d = np.array([
+        [14874.213, 11963.261, 9359.116], [14807.165, 11901.648, 9302.983],
+        [14673.455, 11778.802, 9191.091], [14473.856, 11595.477, 9024.185],
+        [14209.515, 11352.795, 8803.374], [13881.942, 11052.236, 8530.122],
+        [13492.995, 10695.621, 8206.235], [13044.861, 10285.098, 7833.849],
+        [12540.035, 9823.124, 7415.413], [11981.297, 9312.442, 6953.676],
+        [11371.691, 8756.066, 6451.672], [10714.501, 8157.259, 5912.711],
+        [10013.224, 7519.518, 5340.369], [9271.556, 6846.561, 4738.489],
+        [8493.367, 6142.313, 4111.190],
+    ])
+    j = np.arange(15)[:, np.newaxis]
+    direct = np.sum((2 * j + 1) * np.exp(-(d[0, 0] - d) * 1.438776877 / 1000.0))
+    assert helium_hydride_ion_internal_partition_function(1000.0) == pytest.approx(direct, rel=1e-4)
+    temperature = np.array([4_000.0, 6_000.0, 8_000.0])
+    constant = helium_hydride_ion_formation_constant(temperature)
+    # n(HeH+)/(n(H+) n(He)); 1.4-1.9e-22 cm^3 at 6000 K in the literature.
+    assert 1.6e-22 < constant[1] < 2.1e-22
+    assert np.all(np.diff(constant) < 0.0)
