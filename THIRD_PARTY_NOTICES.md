@@ -228,7 +228,8 @@ the Hydrogen Database of C. Schimeczek and G. Wunner (DaRUS,
 doi:[10.18419/DARUS-2118](https://doi.org/10.18419/DARUS-2118); method in
 Comput. Phys. Commun. 185, 614, 2014), distributed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). It contains the
-Balmer transitions and all stationary-state energies for beta <= 3, copied
+Balmer transitions, the three intra-shell n=2 -> 2 transitions and all
+stationary-state energies for beta <= 3, copied
 without modification (transition energies and dipole strengths stored as
 single precision). `tools/build_h2db_subset.py` rebuilds it from the public
 archive. Cite Schimeczek & Wunner when using DAH models.

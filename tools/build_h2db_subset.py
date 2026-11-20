@@ -6,7 +6,9 @@ doi:10.18419/DARUS-2118, CC BY 4.0): ``transitions.7z`` and ``energies.7z``
 unpacked into ``ROOT/transitions`` and ``ROOT/energies``.  The output keeps
 
 * every Balmer transition (lower level n=2, upper n=3..22 identified from the
-  near-zero-field row), and
+  near-zero-field row),
+* the intra-shell n=2 -> 2 transitions (2s0 -> 2p+1, 2p-1 -> 2s0, 2p0 -> 2s0;
+  near-zero transition energy), stored with upper level 2, and
 * every stationary-state energy track,
 
 for beta = B/B0 <= ``--maximum-beta`` (B0 = 4.70103e9 G), plus the first row
@@ -49,9 +51,10 @@ def _truncate(table: np.ndarray, maximum_beta: float) -> np.ndarray:
 
 
 def _balmer_upper_level(transition_energy: float, initial_energy: float) -> int | None:
+    # Upper level 2 is the intra-shell n=2 -> 2 group (zero field-free energy).
     if abs(initial_energy + 0.25) > 3.0e-3:
         return None
-    levels = np.arange(3, 23)
+    levels = np.arange(2, 23)
     expected = 0.25 - 1.0 / levels.astype(float) ** 2
     index = int(np.argmin(abs(expected - transition_energy)))
     if abs(expected[index] - transition_energy) >= 2.5e-3:
@@ -112,7 +115,7 @@ def build(root: Path, output: Path, maximum_beta: float) -> None:
         ),
     )
     print(
-        f"{len(labels)} Balmer transitions ({transitions.shape[0]} rows), "
+        f"{len(labels)} Balmer and n=2->2 transitions ({transitions.shape[0]} rows), "
         f"{len(energy_labels)} energy tracks ({energies.shape[0]} rows) -> {output} "
         f"({output.stat().st_size / 1e6:.1f} MB)"
     )
