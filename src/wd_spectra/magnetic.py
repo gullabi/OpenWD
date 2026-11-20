@@ -374,7 +374,12 @@ def _motional_stark_template(
     wide = 8.0 * sigma.max()
     tail = np.geomspace(sigma.min(), wide + 20.0 * np.abs(shift_hz).max(), 300)
     side = -1.0 if shift_hz[0] < 0.0 else 1.0  # s has the sign of Delta alpha at every depth
-    detuning = np.unique(np.concatenate((np.arange(-wide, wide, sigma.min() / 4.0), side * tail)))
+    # Empty nodes out to 900 and 25000 A (as the zero-field templates) carry the
+    # dispersion (Faraday) wing, which falls off only as 1/detuning.
+    blue, red = LIGHT_SPEED / 9.0e-6 - rest_frequency, rest_frequency - LIGHT_SPEED / 2.5e-4
+    detuning = np.unique(np.concatenate((
+        np.arange(-wide, wide, sigma.min() / 4.0), side * tail,
+        -np.geomspace(wide, blue, 150), np.geomspace(wide, red, 150))))
     mesh = LIGHT_SPEED / (rest_frequency - detuning) / 1.0e-8
     opacity = template.strength[np.newaxis, :] * motional_stark_profile(
         detuning[:, np.newaxis], sigma[np.newaxis, :], shift_hz[np.newaxis, :])

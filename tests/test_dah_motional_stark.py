@@ -70,3 +70,24 @@ def test_motional_kernel_conserves_line_strength(scale):
     thin = atm.rosseland_optical_depth < .1  # zero-field Stark wings fit inside the grid
     np.testing.assert_allclose(area[thin], trapezoid(reference[::-1], nu, axis=0)[thin], rtol=1e-3)
     assert np.all(area[~thin] > 0)
+
+
+def test_motional_dispersion_is_the_hilbert_partner_of_its_absorption():
+    # On a disk the V/I of narrow lines comes from their dispersion wing, so the
+    # kernel's partner must hold far from the line, not only in its core.
+    from wd_spectra.magnetic import _motional_stark_template, _translated_profile, frequency_hilbert_dispersion
+
+    _, table = _data()
+    atm = gray_hydrogen_atmosphere(18000., 8., n_depth=4)
+    template = _kurucz_griem_templates(atm, 3, False)[3]
+    rest = LIGHT_SPEED / (BALMER_LINES[0].wavelength_vacuum_angstrom * 1e-8)
+    # sigma- 2s0-3d-1 and pi 2s0-3p0 at 280 MG; the sign flip checks a blue (Delta alpha < 0) wing.
+    for label, sign in (((0, 1, 2, -1, 1, 2), 1.), ((0, 1, 2, 0, -1, 2), -1.)):
+        shift = sign * motional_stark_shift_hz(table.delta_alpha_at(label, 280.), 280., atm.temperature)
+        kernel = _motional_stark_template(template, rest, rest, shift, atm.temperature, True)
+        wave = np.unique(np.concatenate((kernel.wavelength_angstrom, np.geomspace(3000., 12000., 2000))))
+        numeric = frequency_hilbert_dispersion(wave, _translated_profile(kernel, wave, 0.))
+        phase = _translated_profile(kernel, wave, 0., kernel.dispersion)
+        np.testing.assert_allclose(phase, numeric, rtol=0, atol=2e-3 * np.abs(numeric).max())
+        far = np.abs(wave - BALMER_LINES[0].wavelength_vacuum_angstrom) > 500.  # the Faraday wing
+        np.testing.assert_allclose(phase[far], numeric[far], rtol=2e-3)

@@ -387,7 +387,7 @@ def _surface_cells_sha256(cells: SurfaceCells, *, structure_only: bool = False) 
 
 
 def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) -> DAHConfig:
-    # Line positions and the n=2 -> 2 lines enter the synthesis only, so one relaxed
+    # Line positions, the n=2 -> 2 lines and the Balmer kernel enter the synthesis only, so one relaxed
     # structure serves every setting of these options.
     options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
                    include_finite_nuclear_mass=False, include_intrashell_lines=False,
