@@ -3,6 +3,8 @@
 This is a chemical-picture closure, not a dense-fluid free-energy EOS. It
 retains the existing atomic occupation prescription, and includes H2, H2+,
 H-, and H3+ in nuclei, particle pressure, charge, and reaction enthalpy.
+HeH+ (H+ + He) joins them when ``include_helium_hydride_ion`` is set (or
+``eos.MIXED_HELIUM_HYDRIDE_ION_DEFAULT`` when it is None).
 """
 import numpy as np
 from . import eos
@@ -22,6 +24,7 @@ def molecular_hydrogen_helium_lte(
     include_negative_hydrogen=True,
     trihydrogen_ion_partition_model="neale-tennyson-1995",
     conservation_tolerance=2e-11,
+    include_helium_hydride_ion=None,
 ):
     """Solve mass action with three log densities and strict conservation.
 
@@ -41,13 +44,18 @@ def molecular_hydrogen_helium_lte(
     )
     shape = t.shape
     t, p, abundance = t.ravel(), p.ravel(), abundance.ravel()
+    if include_helium_hydride_ion is None:
+        include_helium_hydride_ion = eos.MIXED_HELIUM_HYDRIDE_ION_DEFAULT
+    log_k_heh = (np.log(mol.helium_hydride_ion_formation_constant(t))
+                 if include_helium_hydride_ion else None)
     options = dict(
         maximum_level=maximum_level,
         hydrogen_neutral_radius_scale=hydrogen_neutral_radius_scale,
         helium_neutral_radius_scale=helium_neutral_radius_scale,
         correlated_microfields=correlated_microfields,
     )
-    initial = eos.hummer_mihalas_hydrogen_helium_lte(t, p, abundance, **options)
+    initial = eos.hummer_mihalas_hydrogen_helium_lte(
+        t, p, abundance, include_helium_hydride_ion=include_helium_hydride_ion, **options)
     target_log = np.log(p / (BOLTZMANN * t))
     x = np.log(
         np.stack(
@@ -159,9 +167,10 @@ def molecular_hydrogen_helium_lte(
             - eos.HELIUM_SECOND_IONIZATION_ENERGY / (BOLTZMANN * t)
             - v[:, 2]
         )
-        logs = np.stack(
-            (v[:, 0], hp, h2, h2p, hm, h3p, v[:, 1], he1, he2, v[:, 2]), axis=-1
-        )
+        species = [v[:, 0], hp, h2, h2p, hm, h3p, v[:, 1], he1, he2, v[:, 2]]
+        if log_k_heh is not None:
+            species.append(hp + v[:, 1] + log_k_heh)  # index 10: HeH+
+        logs = np.stack(species, axis=-1)
         h_nuclei = np.logaddexp.reduce(
             logs[:, :6] + np.log([1, 1, 2, 2, 1, 3]), axis=-1
         )
@@ -169,6 +178,10 @@ def molecular_hydrogen_helium_lte(
         positive = np.logaddexp.reduce(
             logs[:, [1, 3, 5, 7, 8]] + np.log([1, 1, 1, 1, 2]), axis=-1
         )
+        if log_k_heh is not None:
+            h_nuclei = np.logaddexp(h_nuclei, logs[:, 10])
+            he_nuclei = np.logaddexp(he_nuclei, logs[:, 10])
+            positive = np.logaddexp(positive, logs[:, 10])
         negative = np.logaddexp(logs[:, 4], logs[:, 9])
         residual = np.stack(
             (
@@ -226,7 +239,8 @@ def molecular_hydrogen_helium_lte(
         )
     logs, lh, lhe, dist, (q0, q1, occ, e0, e1) = evaluate(x, True)
     n = np.exp(logs)
-    h, hp, h2, h2p, hm, h3p, he, he1, he2, ne = n.T
+    h, hp, h2, h2p, hm, h3p, he, he1, he2, ne = n.T[:10]
+    heh = n[:, 10] if log_k_heh is not None else np.zeros_like(h)
     nh, nhe = np.exp(lh), np.exp(lhe)
 
     def shaped(a):
@@ -263,7 +277,7 @@ def molecular_hydrogen_helium_lte(
         shaped(he1),
         shaped(he2),
         shaped(ne),
-        shaped((he1 + 2 * he2) / nhe),
+        shaped((he1 + 2 * he2 + heh) / nhe),
         shaped(q0),
         shaped(q1),
         shaped(occ),
@@ -281,6 +295,7 @@ def molecular_hydrogen_helium_lte(
         helium,
         microfield_model=hydrogen.microfield_model,
         chemical_model="molecular-h-he-hm",
+        helium_hydride_ion_density=shaped(heh) if log_k_heh is not None else None,
     )
     return state
 
@@ -338,6 +353,15 @@ def molecular_hydrogen_helium_enthalpy(temperature, pressure, abundance, **optio
         + he.doubly_ionized_he_density
         * (eos.HELIUM_FIRST_IONIZATION_ENERGY + eos.HELIUM_SECOND_IONIZATION_ENERGY)
     )
+    if state.helium_hydride_ion_density is not None:
+        # Ionize H, bind H+ to He by D0, plus rovibrational energy kT dlnQ/dlnT.
+        step = 1e-3
+        dlnq = (np.log(mol.helium_hydride_ion_internal_partition_function(t * (1 + step)))
+                - np.log(mol.helium_hydride_ion_internal_partition_function(t * (1 - step)))
+                ) / (np.log1p(step) - np.log1p(-step))
+        binding = mol.HEH_PLUS_DISSOCIATION_ENERGY_CM_INVERSE * eos.PLANCK * eos.LIGHT_SPEED
+        internal += state.helium_hydride_ion_density * (
+            eos.HYDROGEN_IONIZATION_ENERGY - binding + BOLTZMANN * t * dlnq)
     if h.trihydrogen_ion_partition_model is not None:
         internal += (
             h.trihydrogen_ion_density

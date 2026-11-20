@@ -63,8 +63,11 @@ log g = 9.25.
 - **Continuum.** He I and He II bound–free, He II/He III and He⁻ free–free,
   the He–He⁺ continuum and dissolved-level opacity. Electron and Rayleigh
   scattering. He⁻ free–free from
-  [John (1994)](https://doi.org/10.1093/mnras/269.4.871) inside its table,
-  and from the John & Seaton / Carbon & Gingerich fit outside it.
+  [John (1994)](https://doi.org/10.1093/mnras/269.4.871) inside its table
+  (λ ≥ 5063 Å, 1400–10,080 K). Below 5063 Å at those temperatures, John's
+  edge value times the wavelength shape of the Carbon et al. (1969) fit to
+  John (1968), so the opacity has no step at the table edge. At higher
+  temperatures, the Carbon et al. fit itself.
 - **He I lines.** 36 optical transitions with the corrected, normalized,
   Doppler-convolved "B25" profiles of
   [Tremblay et al. (2026)](https://doi.org/10.3847/1538-4357/ae5e72), which
