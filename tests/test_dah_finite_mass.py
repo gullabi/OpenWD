@@ -48,8 +48,9 @@ def _wavelength(transitions, index, field, finite):
 
 def test_wunner_1985_table_1_halpha_pi(transitions):
     # Table 1: 3p0-2s0 at 5829.88 A for beta = 0.05 in reduced-mass units
-    # B0 = 4.6959e9 G. A pi line (Delta m = 0) checks the units and the beta/mu^2
-    # argument, not the hbar omega_cp term.
+    # B0 = 4.6959e9 G. A pi line 3 MG from its stationary point checks the
+    # field unit, frame and vacuum wavelengths; it cannot tell the option from
+    # the default (0.025 A apart) and does not test the hbar omega_cp term.
     pi = _index(transitions, 0, -1)
     expected = 5829.88 * TO_OPENWD
     assert _wavelength(transitions, pi, 0.05 * 4_695.9, True) == pytest.approx(expected, abs=0.02)
@@ -57,9 +58,12 @@ def test_wunner_1985_table_1_halpha_pi(transitions):
 
 def test_stationary_components(transitions):
     # Minima of lambda(B) against an independent diagonalization of the
-    # finite-mass Hamiltonian: Halpha pi 2s0-3p0 5829.76 A at 231.46 MG and
-    # sigma- 2s0-3p-1 6772.69 A at 196.49 MG (Bohr scale). The infinite-mass
-    # default puts the sigma- minimum at 6777.2 A. H2db nodes lie 0.75 MG apart.
+    # finite-mass H_rel (Pavlov & Meszaros 1993, Eq. 2.12a): regularized
+    # Lagrange-Laguerre radial mesh (60 points, scale 0.6 a0) times Y_l^m up to
+    # l = 60 per (m, z-parity) block, B scanned for the extremum. It gives
+    # Halpha pi 2s0-3p0 5829.76 A at 231.46 MG and sigma- 2s0-3p-1 6772.69 A at
+    # 196.49 MG (Bohr scale). The infinite-mass default puts the sigma- minimum
+    # at 6777.2 A. H2db nodes lie 0.75 MG apart.
     for (upper_m, parity), window, wavelength, field in (
         ((0, -1), (220.0, 245.0), 5829.76, 231.46),
         ((-1, 1), (185.0, 210.0), 6772.69, 196.49),

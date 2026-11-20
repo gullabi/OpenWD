@@ -846,11 +846,13 @@ class H2dbTransitionDatabase:
         with a finite proton mass: Delta E = mu Delta E_inf(beta/mu^2)
         - Delta m hbar omega_cp, mu = 1/(1 + m_e/m_p), hbar omega_cp =
         (m_e/m_p) hbar omega_c (Wunner et al. 1985, A&A 149, 102, Eq. 1;
-        Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12a). H2db is the infinite-mass problem; the default scales it to
-        the reduced-mass line centre only. The correction moves sigma
-        components by Delta m (m_e/m_p) hbar omega_c, e.g. -4.6 A for the
-        Halpha 2s0-3p-1 stationary component at 196 MG. Strengths and
-        populations keep the tabulated field.
+        Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12a). H2db is the
+        infinite-mass problem; the default scales it to the reduced-mass line
+        centre only. The -Delta m hbar omega_cp term moves sigma- blueward and
+        sigma+ redward (-4.6 A for the Halpha 2s0-3p-1 stationary component at
+        196 MG); the beta/mu^2 term adds 2 (m_e/m_p) B dlambda/dB, zero at
+        stationary points. In the linear Zeeman regime the two cancel at first
+        order in m_e/m_p. Strengths and populations keep the tabulated field.
         """
 
         transitions = self.transitions_by_upper_level.get(int(upper_level), ())
