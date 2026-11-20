@@ -31,6 +31,14 @@ populations) missed that cold start by 1.15% at H-alpha and was withdrawn.
 `manifest.json` records the previous checksums under `supersedes`.
 Tolerances are unchanged.
 
+On 2026-11-19 HeH+ joined the mixed H/He EOS. It moves the LTE populations of
+the fixed state by 3.1e-9 (the test compares them at 1e-10), so
+`research/capture_heh_mixed_heminus_controls.py` recomputed them with the new
+EOS and kept the stored NLTE departure coefficients. The emergent flux changes
+by 4.6e-10 and `hd4539-hhe.npz` is retained byte for byte. `manifest.json`
+records the change under `amendments`. The cold-start control is unaffected
+at its 0.1% tolerance.
+
 For an explicitly reviewed new control, use new output directories:
 
 ```bash

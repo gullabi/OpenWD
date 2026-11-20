@@ -1992,7 +1992,7 @@ def radiative_equilibrium_helium_atmosphere(
     ca_ii_he_profile_table: CaIIHeProfileTable | None = None,
     helium_reos3_table: HeliumREOS3Table | None = None,
     helium_minus_correction_table=None,
-    helium_minus_prescription: str = "automatic",
+    helium_minus_prescription: str | None = None,
     metal_photoionization_database: VernerPhotoionizationDatabase | None = None,
     metal_topbase_photoionization_database: (
         TOPbasePhotoionizationDatabase | None
@@ -2086,7 +2086,7 @@ def radiative_equilibrium_helium_atmosphere(
         PLANCK,
         STEFAN_BOLTZMANN,
     )
-    from .helium import HELIUM_I_LINES, HELIUM_II_LINES, _helium_ii_level_distribution, helium_continuum_mass_absorption_coefficient, helium_minus_free_free_description, helium_i_line_mass_absorption_coefficient, helium_i_resonance_line_mass_absorption_coefficient, helium_ii_line_mass_absorption_coefficient, helium_rayleigh_scattering_mass_coefficient, rosseland_mean_helium_continuum_opacity
+    from .helium import HELIUM_I_LINES, HELIUM_II_LINES, _helium_ii_level_distribution, helium_continuum_mass_absorption_coefficient, helium_minus_free_free_description, resolve_helium_minus_prescription, helium_i_line_mass_absorption_coefficient, helium_i_resonance_line_mass_absorption_coefficient, helium_ii_line_mass_absorption_coefficient, helium_rayleigh_scattering_mass_coefficient, rosseland_mean_helium_continuum_opacity
     if homogeneous_mixture:
         from .mixture import rosseland_mean_hydrogen_helium_continuum_opacity
     from .opacity import BALMER_LINES, BRACKETT_LINES, LYMAN_LINES, PASCHEN_LINES, balmer_mass_absorption_coefficient, brackett_mass_absorption_coefficient, electron_scattering_mass_coefficient, hydrogen_continuum_mass_absorption_coefficient, hydrogen_dissolved_level_pseudocontinuum_mass_absorption_coefficient, hydrogen_rayleigh_scattering_mass_coefficient, lyman_mass_absorption_coefficient, paschen_mass_absorption_coefficient
@@ -2968,7 +2968,9 @@ def radiative_equilibrium_helium_atmosphere(
             "helium_minus_free_free": helium_minus_free_free_description(
                 helium_minus_prescription
             ),
-            "helium_minus_free_free_prescription": helium_minus_prescription,
+            "helium_minus_free_free_prescription": resolve_helium_minus_prescription(
+                helium_minus_prescription
+            ),
             "dense_helium_minus_free_free": (
                 {
                     "table_sha256": helium_minus_correction_table.sha256,

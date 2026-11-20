@@ -10,6 +10,7 @@ from wd_spectra import (
 from wd_spectra.atmosphere import (
     _solve_bracketed_log_root,
 )
+from wd_spectra.molecules import helium_hydride_ion_formation_constant
 
 
 def test_gray_atmosphere_obeys_structure_equations():
@@ -96,9 +97,14 @@ def test_gray_mixed_atmosphere_caches_both_species_and_total_density():
         hydrogen.mass_density + helium.mass_density,
         rtol=2.0e-15,
     )
+    # Reconstruct the molecular charge from the cached atomic populations
+    # and the mass-action relation H+ + He <=> HeH+.
+    helium_hydride = (helium_hydride_ion_formation_constant(atmosphere.temperature)
+                      * hydrogen.proton_density * helium.neutral_he_density)
     np.testing.assert_allclose(
         atmosphere.electron_density,
         hydrogen.proton_density
+        + helium_hydride
         + helium.singly_ionized_he_density
         + 2.0 * helium.doubly_ionized_he_density,
         rtol=2.0e-11,
