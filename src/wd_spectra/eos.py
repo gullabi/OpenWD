@@ -2084,9 +2084,13 @@ def hummer_mihalas_hydrogen_helium_lte(
         low_occupation = np.ones(nuclei_density.shape + (5,))
 
         # Cross-species occupation probabilities make the neutral populations
-        # a short fixed-point problem at a trial electron density.
-        for _ in range(8 if include_helium_hydride_ion else 4):
+        # a short fixed-point problem at a trial electron density.  HeH+ also
+        # changes the particle count, so with it the loop continues past the
+        # usual four passes (up to eight) only while the populations still
+        # move; hot gas, where HeH+ is negligible, stops at four, as without it.
+        for iteration in range(8 if include_helium_hydride_ion else 4):
             if include_helium_hydride_ion:
+                previous_hydride = hydride
                 # HeH+ binds one H and one He nucleus into one particle.
                 nuclei_density = np.maximum(
                     particle_density - electron_density + hydride, tiny
@@ -2179,8 +2183,19 @@ def hummer_mihalas_hydrogen_helium_lte(
             candidate_neutral_helium = (
                 (helium_nuclei - hydride) * helium_ion_fractions[..., 0]
             )
+            if include_helium_hydride_ion and iteration >= 3:
+                change = max(
+                    float(np.max(np.abs(new - old) / np.maximum(np.abs(new), tiny)))
+                    for new, old in (
+                        (candidate_neutral_hydrogen, neutral_hydrogen),
+                        (candidate_neutral_helium, neutral_helium),
+                        (hydride, previous_hydride),
+                    )
+                )
             neutral_hydrogen = candidate_neutral_hydrogen
             neutral_helium = candidate_neutral_helium
+            if include_helium_hydride_ion and iteration >= 3 and change <= 1e-12:
+                break
 
         assert hydrogen_distribution is not None
         # Re-evaluate both partitions at the final perturber populations so
