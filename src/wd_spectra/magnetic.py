@@ -45,7 +45,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .atmosphere import Atmosphere
-from .constants import BOLTZMANN, ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, LIGHT_SPEED, PI, PLANCK
+from .constants import BOLTZMANN, ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, HYDROGEN_MASS, LIGHT_SPEED, PI, PLANCK
 from .magnetic_atomic import H2dbEnergyDatabase, H2dbTransitionDatabase
 from .magnetic_continuum import explicit_rwa_hydrogen_bound_free_mass_absorption_coefficient
 from .molecules import H2H2CollisionInducedAbsorptionTable
@@ -439,6 +439,72 @@ def h2db_balmer_manifolds(
                 phases[q] += weight * _translated_profile(
                     template, wavelength, shift, template.dispersion
                 )
+    result = PolarizedOpacity(manifolds[-1], manifolds[0], manifolds[1])
+    if dispersion:
+        return result, PolarizedOpacity(phases[-1], phases[0], phases[1])
+    return result
+
+
+def h2db_intrashell_manifolds(
+    atmosphere: Atmosphere,
+    wavelength_angstrom: ArrayLike,
+    field_strength_megagauss: float,
+    database: H2dbTransitionDatabase,
+    *,
+    dispersion: bool = False,
+    finite_nuclear_mass: bool = False,
+) -> PolarizedOpacity | tuple[PolarizedOpacity, PolarizedOpacity]:
+    """Return the n=2 -> 2 manifolds (2s0 -> 2p+1, 2p-1 -> 2s0, 2p0 -> 2s0).
+
+    These components exist only in a field, so they have no zero-field line
+    to redistribute.  Each contributes to its manifold
+    ``3 (pi e^2/m_e c) f (n_2 x_i / rho) (1 - exp(-h nu/kT)) phi_nu``: f and
+    the lower-substate share x_i from
+    :meth:`H2dbTransitionDatabase.intrashell_components`, n_2 the n=2 shell
+    population of ``atmosphere`` (pass the local, field-dependent one), and
+    the factor 3 because a manifold holds three times the angle-averaged
+    opacity.  phi_nu is a thermal Doppler profile: the linear Stark effect of
+    the plasma microfield is quenched for these nondegenerate substates
+    (shifts ~1e-6 eV against splittings of ~1 eV), and the motional Stark
+    effect of atoms crossing the field is not included.  Its dispersion
+    partner is the Dawson part of the Faddeeva function.
+    """
+
+    from scipy.special import wofz
+
+    from .opacity import _atmosphere_level_distribution
+
+    wavelength = _validate_grid(wavelength_angstrom)
+    field = _validate_field(field_strength_megagauss)
+    temperature = atmosphere.temperature
+    shape = (wavelength.size, atmosphere.n_depth)
+    manifolds = {-1: np.zeros(shape), 0: np.zeros(shape), 1: np.zeros(shape)}
+    phases = {-1: np.zeros(shape), 0: np.zeros(shape), 1: np.zeros(shape)}
+    components = database.intrashell_components(
+        field, temperature, finite_nuclear_mass=finite_nuclear_mass
+    )
+    n2_per_gram = (
+        _atmosphere_level_distribution(atmosphere, 2).population_density[:, 1]
+        / atmosphere.mass_density
+    )
+    frequency = LIGHT_SPEED / (wavelength * 1.0e-8)
+    thermal_speed = np.sqrt(2.0 * BOLTZMANN * temperature / HYDROGEN_MASS)
+    for index, center_wavelength in enumerate(components.wavelength_angstrom):
+        center = LIGHT_SPEED / (center_wavelength * 1.0e-8)
+        width = center * thermal_speed / LIGHT_SPEED
+        faddeeva = wofz((frequency[:, np.newaxis] - center) / width[np.newaxis, :])
+        strength = (
+            3.0 * PI * ELEMENTARY_CHARGE_ESU**2 / (ELECTRON_MASS * LIGHT_SPEED)
+            * components.oscillator_strength[index]
+            * components.lower_state_fraction[index] * n2_per_gram
+            * -np.expm1(-PLANCK * center / (BOLTZMANN * temperature))
+            / (np.sqrt(PI) * width)
+        )[np.newaxis, :]
+        q = int(np.sign(components.delta_m[index]))
+        manifolds[q] += strength * faddeeva.real
+        if dispersion:
+            # Positive on the low-frequency side, as frequency_hilbert_dispersion.
+            phases[q] -= strength * faddeeva.imag
     result = PolarizedOpacity(manifolds[-1], manifolds[0], manifolds[1])
     if dispersion:
         return result, PolarizedOpacity(phases[-1], phases[0], phases[1])
@@ -1036,6 +1102,8 @@ class MagneticPhysics:
     include_centered_motion: bool = True
     # H2db component positions for a finite proton mass (balmer_components).
     include_finite_nuclear_mass: bool = False
+    # n=2 -> 2 components with absolute strengths (h2db_intrashell_manifolds).
+    include_intrashell_lines: bool = False
     include_molecular_absorption: bool = False
     h2_h2_cia_table: H2H2CollisionInducedAbsorptionTable | None = None
     # A disk model selects this once from its maximum visible field.
@@ -1259,6 +1327,18 @@ def synthesize_magnetic_hydrogen_spectrum(
             lines = lines.scaled(population)
             if line_dispersion is not None:
                 line_dispersion = line_dispersion.scaled(population)
+            if physics.include_intrashell_lines and regime == "h2db" and field > 0.0:
+                if physics.transitions is None:
+                    raise ValueError("n=2 -> 2 lines require the H2db transition database")
+                intrashell = h2db_intrashell_manifolds(
+                    local, wavelength, field, physics.transitions,
+                    dispersion=line_dispersion is not None,
+                    finite_nuclear_mass=physics.include_finite_nuclear_mass,
+                )
+                if line_dispersion is None:
+                    lines = lines + intrashell
+                else:
+                    lines, line_dispersion = lines + intrashell[0], line_dispersion + intrashell[1]
             unpolarized, rwa = magnetic_continuum(
                 local,
                 wavelength,
@@ -1467,6 +1547,7 @@ __all__ = [
     "dipole_surface_cells",
     "frequency_hilbert_dispersion",
     "h2db_balmer_manifolds",
+    "h2db_intrashell_manifolds",
     "linear_zeeman_triplet",
     "magnetic_continuum",
     "rwa_dispersion",
