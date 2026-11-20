@@ -45,8 +45,10 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .atmosphere import Atmosphere
-from .constants import BOLTZMANN, ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, HYDROGEN_MASS, LIGHT_SPEED, PI, PLANCK
-from .magnetic_atomic import H2dbEnergyDatabase, H2dbTransitionDatabase
+from .constants import (
+    BOLTZMANN, ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, HYDROGEN_MASS, LIGHT_SPEED, PI, PLANCK,
+)
+from .magnetic_atomic import H2dbEnergyDatabase, H2dbTransitionDatabase, MotionalStarkTable
 from .magnetic_continuum import explicit_rwa_hydrogen_bound_free_mass_absorption_coefficient
 from .molecules import H2H2CollisionInducedAbsorptionTable
 from .opacity import BALMER_LINES
@@ -281,6 +283,8 @@ class BalmerLineTemplate:
     wavelength_angstrom: FloatArray
     mass_absorption_coefficient: FloatArray
     dispersion: FloatArray | None = None
+    # Frequency-integrated line opacity per depth [cm^2 g^-1 Hz].
+    strength: FloatArray | None = None
 
 
 def _translated_profile(
@@ -306,6 +310,81 @@ def _translated_profile(
     weight = ((position - mesh[index]) / (mesh[index + 1] - mesh[index]))[:, np.newaxis]
     result[target] = (1.0 - weight) * values[index] + weight * values[index + 1]
     return result
+
+
+# Motional Stark kernel. An atom moving with v_perp across B sees the electric
+# field F = v_perp B / c (Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12b). A
+# nondegenerate level shifts by -alpha_perp F^2 / 2, so a thermal v_perp gives
+# each Zeeman component a one-sided exponential profile in photon energy with
+# mean s = Delta alpha kT beta^2 / M (atomic units, beta = B / B_au, M = m_p +
+# m_e), on the red side for Delta alpha > 0 (Pavlov & Meszaros 1993, Eqs. 2.23,
+# 3.27-3.31; Rosato 2023, JQSRT 306, 108628, Eq. 3).
+_ATOMIC_UNIT_FIELD_MEGAGAUSS = 2_350.517_57
+_HYDROGEN_ATOM_MASS_ELECTRON_MASSES = 1_837.152_673_43
+
+
+def motional_stark_shift_hz(
+    delta_alpha: float, field_strength_megagauss: float, temperature: FloatArray
+) -> FloatArray:
+    """Mean motional shift s in Hz (positive towards lower frequency)."""
+
+    beta = field_strength_megagauss / _ATOMIC_UNIT_FIELD_MEGAGAUSS
+    return (delta_alpha * BOLTZMANN * np.asarray(temperature) * beta**2
+            / _HYDROGEN_ATOM_MASS_ELECTRON_MASSES / PLANCK)
+
+
+def motional_stark_profile(
+    detuning_hz: ArrayLike, doppler_sigma_hz: ArrayLike, shift_hz: ArrayLike
+) -> FloatArray:
+    """Unit-area one-sided exponential of mean ``shift_hz`` convolved with a Gaussian.
+
+    ``detuning_hz`` is the component frequency minus the frequency, so a
+    positive shift is a red wing; ``doppler_sigma_hz`` is the Gaussian standard
+    deviation. As the shift goes to zero the Gaussian is recovered.
+    """
+
+    from scipy.special import erfc, erfcx
+
+    x, sigma, shift = np.broadcast_arrays(*(np.asarray(v, dtype=np.float64) for v in (
+        detuning_hz, doppler_sigma_hz, shift_hz)))
+    x = np.where(shift < 0.0, -x, x)
+    s = np.maximum(np.abs(shift), 1.0e-12 * sigma)
+    z = (sigma / s - x / sigma) / np.sqrt(2.0)
+    result = np.empty(x.shape)
+    core = z >= 0.0
+    result[core] = np.exp(-0.5 * (x[core] / sigma[core])**2) * erfcx(z[core])
+    wing = ~core  # here x > sigma^2/s, so the exponent stays negative
+    result[wing] = np.exp(0.5 * (sigma[wing] / s[wing])**2 - x[wing] / s[wing]) * erfc(z[wing])
+    return result / (2.0 * s)
+
+
+def _motional_stark_template(
+    template: BalmerLineTemplate,
+    rest_frequency: float,
+    component_frequency: float,
+    shift_hz: FloatArray,
+    temperature: FloatArray,
+    dispersion: bool,
+) -> BalmerLineTemplate:
+    """The motional kernel of one component as a template about ``rest_frequency``."""
+
+    if template.strength is None:
+        raise ValueError("the motional kernel needs a template with its line strength")
+    sigma = component_frequency * np.sqrt(BOLTZMANN * temperature / HYDROGEN_MASS) / LIGHT_SPEED
+    wide = 8.0 * sigma.max()
+    tail = np.geomspace(sigma.min(), wide + 20.0 * np.abs(shift_hz).max(), 300)
+    side = -1.0 if shift_hz[0] < 0.0 else 1.0  # s has the sign of Delta alpha at every depth
+    # Empty nodes out to 900 and 25000 A (as the zero-field templates) carry the
+    # dispersion (Faraday) wing, which falls off only as 1/detuning.
+    blue, red = LIGHT_SPEED / 9.0e-6 - rest_frequency, rest_frequency - LIGHT_SPEED / 2.5e-4
+    detuning = np.unique(np.concatenate((
+        np.arange(-wide, wide, sigma.min() / 4.0), side * tail,
+        -np.geomspace(wide, blue, 150), np.geomspace(wide, red, 150))))
+    mesh = LIGHT_SPEED / (rest_frequency - detuning) / 1.0e-8
+    opacity = template.strength[np.newaxis, :] * motional_stark_profile(
+        detuning[:, np.newaxis], sigma[np.newaxis, :], shift_hz[np.newaxis, :])
+    return BalmerLineTemplate(
+        mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if dispersion else None)
 
 
 def _kurucz_griem_templates(
@@ -384,6 +463,8 @@ def h2db_balmer_manifolds(
     maximum_upper_level: int = MAXIMUM_H2DB_BALMER_UPPER_LEVEL,
     dispersion: bool = False,
     finite_nuclear_mass: bool = False,
+    motional_stark_table: MotionalStarkTable | None = None,
+    motional_scale: float = 1.0,
 ) -> PolarizedOpacity | tuple[PolarizedOpacity, PolarizedOpacity]:
     """Return H2db Halpha--H12 manifolds at one local field.
 
@@ -394,10 +475,16 @@ def h2db_balmer_manifolds(
     ``S_n`` normalizes the complete component weights (including stimulated
     emission) to the zero-field line strength at each depth before ray-angle
     factors are applied.
+
+    With ``motional_stark_table`` every component it lists at this field takes
+    the motional Stark kernel with its shift scaled by ``motional_scale`` (0:
+    Doppler only) in place of the zero-field Stark template.
     """
 
     wavelength = _validate_grid(wavelength_angstrom)
     field = _validate_field(field_strength_megagauss)
+    if not (np.isfinite(motional_scale) and motional_scale >= 0.0):
+        raise ValueError("motional_scale must be finite and non-negative")
     if not 3 <= maximum_upper_level <= MAXIMUM_H2DB_BALMER_UPPER_LEVEL:
         raise ValueError("maximum_upper_level must lie in 3..12")
     if templates is None:
@@ -433,11 +520,19 @@ def h2db_balmer_manifolds(
                     atmosphere.temperature, rest_frequency, component_frequency
                 )
             )[np.newaxis, :]
+            kernel = template
+            if motional_stark_table is not None:
+                delta_alpha = motional_stark_table.delta_alpha_at(components.labels[index], field)
+                if np.isfinite(delta_alpha):
+                    kernel = _motional_stark_template(
+                        template, rest_frequency, component_frequency,
+                        motional_scale * motional_stark_shift_hz(delta_alpha, field, atmosphere.temperature),
+                        atmosphere.temperature, dispersion)
             q = int(np.sign(delta_m))
-            manifolds[q] += weight * _translated_profile(template, wavelength, shift)
+            manifolds[q] += weight * _translated_profile(kernel, wavelength, shift)
             if dispersion:
                 phases[q] += weight * _translated_profile(
-                    template, wavelength, shift, template.dispersion
+                    kernel, wavelength, shift, kernel.dispersion
                 )
     result = PolarizedOpacity(manifolds[-1], manifolds[0], manifolds[1])
     if dispersion:
@@ -1102,6 +1197,9 @@ class MagneticPhysics:
     include_centered_motion: bool = True
     # H2db component positions for a finite proton mass (balmer_components).
     include_finite_nuclear_mass: bool = False
+    # Set for the motional Stark kernel (DAHConfig.balmer_line_broadening).
+    motional_stark_table: MotionalStarkTable | None = None
+    motional_scale: float = 1.0
     # n=2 -> 2 components with absolute strengths (h2db_intrashell_manifolds).
     include_intrashell_lines: bool = False
     include_molecular_absorption: bool = False
@@ -1167,6 +1265,8 @@ def _balmer_manifolds(
         atmosphere, wavelength, field, physics.transitions,
         templates=templates, dispersion=dispersion,
         finite_nuclear_mass=physics.include_finite_nuclear_mass,
+        motional_stark_table=physics.motional_stark_table,
+        motional_scale=physics.motional_scale,
     )
 
 
@@ -1547,6 +1647,8 @@ __all__ = [
     "dipole_surface_cells",
     "frequency_hilbert_dispersion",
     "h2db_balmer_manifolds",
+    "motional_stark_profile",
+    "motional_stark_shift_hz",
     "h2db_intrashell_manifolds",
     "linear_zeeman_triplet",
     "magnetic_continuum",
