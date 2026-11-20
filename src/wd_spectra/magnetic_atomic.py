@@ -872,10 +872,12 @@ class H2dbTransitionDatabase:
         if temperature.ndim != 1 or np.any(temperature <= 0.0):
             raise ValueError("temperature must be a positive one-dimensional array")
         transitions = self.intrashell_transitions
-        floor = max((t.beta[0] for t in transitions), default=np.inf) * H2DB_REFERENCE_FIELD_MEGAGAUSS
-        if field_strength_megagauss < max(floor, max(
-            t.beta[0] for group in self.transitions_by_upper_level.values() for t in group
-        ) * H2DB_REFERENCE_FIELD_MEGAGAUSS):
+        floor = max(
+            t.beta[0]
+            for group in (*self.transitions_by_upper_level.values(), transitions)
+            for t in group
+        ) * H2DB_REFERENCE_FIELD_MEGAGAUSS
+        if not transitions or field_strength_megagauss < floor:
             empty = np.zeros(0)
             return H2dbIntrashellComponents(
                 empty, empty, np.zeros((0, temperature.size)), np.zeros(0, dtype=np.int64)
