@@ -149,6 +149,7 @@ the equilibrium checks and absolute-flux agreement.
 | `include_rwa_photoionization` | `True` | RWA bound–free opacity above 1 MG. |
 | `include_magnetic_eos` | `True` | Magnetic Saha/HM equilibrium above 1 MG. |
 | `include_centered_motion` | `True` | Transverse-mass weighting in the EOS and RWA populations. |
+| `include_finite_nuclear_mass` | `False` | H2db component positions for a finite proton mass: tracks read at β/μ² and shifted by −Δm ħω_cp ([Wunner et al. 1985](https://ui.adsabs.harvard.edu/abs/1985A%26A...149..102W), Eq. 1; [Pavlov & Mészáros 1993](https://doi.org/10.1086/173274), Eq. 2.12a); at 150–400 MG it moves Hα σ− by 1.5–10.5 Å and Hβ σ− by 0.4–3.8 Å (components in 3400–8000 Å); π stationary points are unchanged. |
 
 `paper_dah_config(**parameters)` returns a `DAHConfig` with the zero-field
 EOS and H I bound–free opacity at all fields (`include_rwa_photoionization`,

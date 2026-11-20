@@ -37,6 +37,8 @@ H2DB_VANISHING_BRANCH_ENERGY_RYDBERG = 1.0e-2
 # with the reduced-mass hydrogen Rydberg used by the ordinary EOS and line
 # centers, so the zero-field limit is exact.
 _RYDBERG_ENERGY_ERG = HYDROGEN_IONIZATION_ENERGY
+# m_e/m_p (CODATA 2018) for the finite-nuclear-mass component positions.
+ELECTRON_PROTON_MASS_RATIO = 1.0 / 1_836.152_673_43
 
 
 @dataclass(frozen=True)
@@ -825,6 +827,7 @@ class H2dbTransitionDatabase:
         *,
         field_angle_deg: float | None = None,
         minimum_relative_strength: float = 1.0e-5,
+        finite_nuclear_mass: bool = False,
     ) -> H2dbBalmerComponents:
         """Evaluate one Balmer line's H2db components at a local field.
 
@@ -838,6 +841,18 @@ class H2dbTransitionDatabase:
         triplet supplies the weak-field continuation without extrapolating
         quantized energy tracks. The disk can still use strong-field EOS and
         continuum physics consistently in these weak surface cells.
+
+        ``finite_nuclear_mass=True`` places the components of an atom at rest
+        with a finite proton mass: Delta E = mu Delta E_inf(beta/mu^2)
+        - Delta m hbar omega_cp, mu = 1/(1 + m_e/m_p), hbar omega_cp =
+        (m_e/m_p) hbar omega_c (Wunner et al. 1985, A&A 149, 102, Eq. 1;
+        Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12a). H2db is the
+        infinite-mass problem; the default scales it to the reduced-mass line
+        centre only. The -Delta m hbar omega_cp term moves sigma- blueward and
+        sigma+ redward (-4.6 A for the Halpha 2s0-3p-1 stationary component at
+        196 MG); the beta/mu^2 term adds 2 (m_e/m_p) B dlambda/dB, zero at
+        stationary points. In the linear Zeeman regime the two cancel at first
+        order in m_e/m_p. Strengths and populations keep the tabulated field.
         """
 
         transitions = self.transitions_by_upper_level.get(int(upper_level), ())
@@ -853,13 +868,22 @@ class H2dbTransitionDatabase:
         minimum_field = max(
             t.beta[0] for group in self.transitions_by_upper_level.values() for t in group
         ) * H2DB_REFERENCE_FIELD_MEGAGAUSS
+        # Finite nuclear mass (see docstring): read the infinite-mass tracks
+        # at beta/mu^2 and subtract Delta m hbar omega_cp; both terms are
+        # divided by mu because the rest wavelength is the reduced-mass one.
+        mass_ratio = ELECTRON_PROTON_MASS_RATIO if finite_nuclear_mass else 0.0
+        table_field = field_strength_megagauss * (1.0 + mass_ratio) ** 2
+        beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
+        proton_cyclotron = 4.0 * beta * mass_ratio * (1.0 + mass_ratio)
         if field_strength_megagauss < minimum_field:
             # Delta E/Ry = 2 beta delta_m, with exact field-free Balmer
             # energy; use the caller's reduced-mass wavelength convention.
             delta_m = np.array([-1, 0, 1], dtype=np.int64)
-            beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
+            table_beta = table_field / H2DB_REFERENCE_FIELD_MEGAGAUSS
             rest_energy = 0.25 - 1.0 / int(upper_level)**2
-            wavelength = rest_wavelength_angstrom * rest_energy / (rest_energy + 2.0 * beta * delta_m)
+            wavelength = rest_wavelength_angstrom * rest_energy / (
+                rest_energy + 2.0 * table_beta * delta_m - proton_cyclotron * delta_m
+            )
             strengths = np.full((3, temperature.size), 1.0 / 3.0)
             if field_angle_deg is not None:
                 angle = float(field_angle_deg)
@@ -886,7 +910,12 @@ class H2dbTransitionDatabase:
         # Scaling each branch to the package's (reduced-mass) vacuum line
         # center removes the infinite-nuclear-mass offset of H2db while
         # retaining all nonlinear magnetic displacements.
-        wavelength = float(rest_wavelength_angstrom) * zero_energy / energy
+        line_energy = energy
+        if finite_nuclear_mass:
+            line_energy = np.asarray([
+                transition.values_at_field(table_field)[0] for transition in transitions
+            ]) - proton_cyclotron * delta_m
+        wavelength = float(rest_wavelength_angstrom) * zero_energy / line_energy
         oscillator_proxy = np.maximum(0.0, energy * dipole)
         # The field-free reference: exact energies, degenerate n=2 substates,
         # and the dipole strength of the lowest tabulated field (the dipole

@@ -98,6 +98,8 @@ class DAHConfig:
     include_rwa_photoionization: bool = True
     include_magnetic_eos: bool = True
     include_centered_motion: bool = True
+    # Finite proton mass in the H2db Balmer component positions (opt-in).
+    include_finite_nuclear_mass: bool = False
     mixing_length_alpha: float | None = None
     # Opt-in; takes precedence over disk_field_bins.
     disk_component_drift_angstrom: float | None = None
@@ -128,6 +130,7 @@ DAH_PAPER_PRESCRIPTION: Mapping[str, object] = MappingProxyType({
     "include_rwa_photoionization": False,
     "include_magnetic_eos": False,
     "include_centered_motion": False,
+    "include_finite_nuclear_mass": False,
 })
 
 
@@ -374,7 +377,9 @@ def _surface_cells_sha256(cells: SurfaceCells, *, structure_only: bool = False) 
 
 
 def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) -> DAHConfig:
-    options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.)
+    # Line positions enter the synthesis only, so one relaxed structure serves both settings.
+    options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
+                   include_finite_nuclear_mass=False)
     if custom_surface_cells:
         # A supplied map replaces the built-in geometry controls. The actual
         # field distribution/weights/bounds are identified separately below.
@@ -491,6 +496,7 @@ def compute_dah(
         include_rwa_photoionization=config.include_rwa_photoionization,
         include_magnetic_eos=config.include_magnetic_eos,
         include_centered_motion=config.include_centered_motion,
+        include_finite_nuclear_mass=config.include_finite_nuclear_mass,
         line_regime="h2db" if strong else "linear-zeeman",
     )
     if not relax_atmosphere and initial_atmosphere is None:
