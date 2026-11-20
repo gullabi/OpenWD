@@ -1,5 +1,7 @@
 """Opt-in drift-resolved DAH disk quadrature and its zero-field limit."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -15,6 +17,7 @@ from wd_spectra.magnetic import (
 from wd_spectra.magnetic_atomic import read_h2db_transition_database
 from wd_spectra.models.common import ModelData
 from wd_spectra.models.dah import dah_surface_cells
+from wd_spectra.opacity import BALMER_LINES
 
 
 @pytest.fixture(scope="module")
@@ -52,6 +55,43 @@ def test_h2db_drift_matches_component_finite_difference(transitions):
     drift = balmer_component_drift_rate(np.linspace(299.0, 302.0, 31), (3600.0, 7000.0), transitions,
                                         maximum_upper_level=3, minimum_relative_strength=0.05)
     assert drift[10] == pytest.approx(expected, rel=0.15)
+
+
+def test_finite_mass_component_enters_narrow_drift_window(transitions):
+    # Only the corrected Halpha sigma- branch enters this window near 206 MG.
+    field = np.array([205.9, 206.0, 206.1])
+    window = (6772.0, 6775.0)
+    rest = next(
+        line.wavelength_vacuum_angstrom for line in BALMER_LINES if line.upper_level == 3
+    )
+    wavelengths = np.array([
+        transitions.balmer_components(
+            3, rest, value, np.array([12_000.0]),
+            minimum_relative_strength=0.0, finite_nuclear_mass=True,
+        ).wavelength_angstrom
+        for value in field
+    ])
+    inside = (window[0] <= wavelengths[1]) & (wavelengths[1] <= window[1])
+    assert np.count_nonzero(inside) == 1
+    expected = (
+        np.abs(wavelengths[-1, inside] - wavelengths[0, inside]).item()
+        / (field[-1] - field[0])
+    )
+    uncorrected = balmer_component_drift_rate(field, window, transitions)
+    corrected = balmer_component_drift_rate(field, window, transitions, finite_nuclear_mass=True)
+    assert uncorrected[1] == 0.0
+    assert corrected[1] == pytest.approx(expected)
+
+    config = DAHConfig(
+        magnetic_field_megagauss=210.0, field_geometry="dipole",
+        dipole_inclination_deg=0.0, disk_component_drift_angstrom=0.25,
+    )
+    old = dah_surface_cells(config, transitions=transitions, wavelength_range_angstrom=window)
+    new = dah_surface_cells(
+        replace(config, include_finite_nuclear_mass=True),
+        transitions=transitions, wavelength_range_angstrom=window,
+    )
+    assert np.unique(new.field_strength_megagauss).size > np.unique(old.field_strength_megagauss).size
 
 
 def test_edges_bound_accumulated_drift():

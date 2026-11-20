@@ -41,6 +41,18 @@ _RYDBERG_ENERGY_ERG = HYDROGEN_IONIZATION_ENERGY
 ELECTRON_PROTON_MASS_RATIO = 1.0 / 1_836.152_673_43
 
 
+def _finite_mass_balmer_terms(
+    field_megagauss: float | FloatArray,
+) -> tuple[float | FloatArray, float | FloatArray]:
+    """Return the H2db lookup field and proton cyclotron energy in reduced Rydbergs."""
+    mass_ratio = ELECTRON_PROTON_MASS_RATIO
+    beta = field_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
+    return (
+        field_megagauss * (1.0 + mass_ratio) ** 2,
+        4.0 * beta * mass_ratio * (1.0 + mass_ratio),
+    )
+
+
 @dataclass(frozen=True)
 class H2dbEnergyTrack:
     """One spin-down, non-positive-``m`` stationary H2db state."""
@@ -871,10 +883,10 @@ class H2dbTransitionDatabase:
         # Finite nuclear mass (see docstring): read the infinite-mass tracks
         # at beta/mu^2 and subtract Delta m hbar omega_cp; both terms are
         # divided by mu because the rest wavelength is the reduced-mass one.
-        mass_ratio = ELECTRON_PROTON_MASS_RATIO if finite_nuclear_mass else 0.0
-        table_field = field_strength_megagauss * (1.0 + mass_ratio) ** 2
-        beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
-        proton_cyclotron = 4.0 * beta * mass_ratio * (1.0 + mass_ratio)
+        table_field, proton_cyclotron = (
+            _finite_mass_balmer_terms(field_strength_megagauss)
+            if finite_nuclear_mass else (field_strength_megagauss, 0.0)
+        )
         if field_strength_megagauss < minimum_field:
             # Delta E/Ry = 2 beta delta_m, with exact field-free Balmer
             # energy; use the caller's reduced-mass wavelength convention.

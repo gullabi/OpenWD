@@ -101,3 +101,12 @@ def test_option_off_is_the_default_infinite_mass_scaling(transitions):
         else:
             old = HALPHA * (5 / 36) / np.array([t.values_at_field(field)[0] for t in branches])
         np.testing.assert_allclose(default.wavelength_angstrom, old, rtol=1e-12)
+
+
+def test_positional_mixing_length_keeps_its_config_slot():
+    config = DAHConfig(
+        16_700.0, 8.07, 196.49, "standard", "uniform", None, "dipole-polar",
+        60.0, (0.0, 0.0, 0.0), 21, "scalar-stokes-i", True, True, True, 0.7,
+    )
+    assert config.mixing_length_alpha == 0.7
+    assert config.include_finite_nuclear_mass is False

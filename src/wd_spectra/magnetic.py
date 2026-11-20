@@ -828,6 +828,7 @@ def balmer_component_drift_rate(
     *,
     maximum_upper_level: int = MAXIMUM_H2DB_BALMER_UPPER_LEVEL,
     minimum_relative_strength: float = 0.01,
+    finite_nuclear_mass: bool = False,
 ) -> FloatArray:
     """Return the fastest component drift ``max |d lambda / dB|`` in A/MG.
 
@@ -839,10 +840,12 @@ def balmer_component_drift_rate(
     differentiated on the supplied grid. Without H2db data (or below its
     lowest tabulated field) the normal-triplet drift
     ``lambda^2 e / (4 pi m_e c^2)`` is used. Lower-state Boltzmann factors are
-    omitted: they only select which components are counted.
+    omitted: they only select which components are counted. With finite
+    nuclear mass, the wavelength calculation uses the same corrected H2db
+    positions as synthesis. The strength proxy still uses the physical field.
     """
 
-    from .magnetic_atomic import H2DB_REFERENCE_FIELD_MEGAGAUSS
+    from .magnetic_atomic import H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms
 
     field = np.asarray(field_strength_megagauss, dtype=np.float64)
     if (field.ndim != 1 or field.size < 2 or np.any(~np.isfinite(field))
@@ -873,6 +876,9 @@ def balmer_component_drift_rate(
     if np.count_nonzero(tabulated) < 2:
         return drift
     beta = field[tabulated] / H2DB_REFERENCE_FIELD_MEGAGAUSS
+    if finite_nuclear_mass:
+        table_field, proton_cyclotron = _finite_mass_balmer_terms(field[tabulated])
+        table_beta = table_field / H2DB_REFERENCE_FIELD_MEGAGAUSS
     strong_drift = np.zeros(beta.size)
     for line in BALMER_LINES:
         level = line.upper_level
@@ -883,16 +889,23 @@ def balmer_component_drift_rate(
         for transition in transitions.transitions_by_upper_level[level]:
             inside = (beta >= transition.beta[0]) & (beta <= transition.beta[-1])
             energy = np.interp(beta, transition.beta, transition.transition_energy_rydberg)
+            line_energy = energy
+            if finite_nuclear_mass:
+                inside &= table_beta <= transition.beta[-1]
+                line_energy = (
+                    np.interp(table_beta, transition.beta, transition.transition_energy_rydberg)
+                    - proton_cyclotron * transition.delta_m
+                )
             finite = np.isfinite(transition.dipole_strength)
             dipole = (
                 np.interp(beta, transition.beta[finite], transition.dipole_strength[finite])
                 if np.count_nonzero(finite) >= 2
                 else np.zeros(beta.size)
             )
-            valid = inside & (energy > 0.0)
-            wavelengths.append(
-                np.where(valid, line.wavelength_vacuum_angstrom * zero_energy / np.where(valid, energy, 1.0), np.nan)
-            )
+            valid = inside & (line_energy > 0.0)
+            safe_energy = np.where(valid, line_energy, 1.0)
+            wavelength = line.wavelength_vacuum_angstrom * zero_energy / safe_energy
+            wavelengths.append(np.where(valid, wavelength, np.nan))
             proxies.append(np.where(valid, np.maximum(0.0, energy * dipole), 0.0))
         wavelength = np.asarray(wavelengths)
         proxy = np.asarray(proxies)
@@ -1034,12 +1047,11 @@ class MagneticPhysics:
     include_rwa_photoionization: bool = True
     include_magnetic_eos: bool = True
     include_centered_motion: bool = True
-    # H2db component positions for a finite proton mass (balmer_components).
-    include_finite_nuclear_mass: bool = False
     include_molecular_absorption: bool = False
     h2_h2_cia_table: H2H2CollisionInducedAbsorptionTable | None = None
     # A disk model selects this once from its maximum visible field.
     line_regime: Literal["linear-zeeman", "h2db"] | None = None
+    include_finite_nuclear_mass: bool = False
 
     def regime(self, maximum_field_megagauss: float) -> str:
         if self.line_regime is not None:
