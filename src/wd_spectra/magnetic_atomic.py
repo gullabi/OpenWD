@@ -19,6 +19,8 @@ from numpy.typing import ArrayLike, NDArray
 from .constants import (
     BOLTZMANN,
     HYDROGEN_IONIZATION_ENERGY,
+    LIGHT_SPEED,
+    PLANCK,
 )
 
 
@@ -814,11 +816,104 @@ class H2dbBalmerComponents:
 
 
 @dataclass(frozen=True)
+class H2dbIntrashellComponents:
+    """n=2 -> 2 components: absolute oscillator strengths and lower-state shares."""
+
+    wavelength_angstrom: FloatArray
+    oscillator_strength: FloatArray
+    lower_state_fraction: FloatArray
+    delta_m: NDArray[np.int64]
+
+
+@dataclass(frozen=True)
 class H2dbTransitionDatabase:
     """Balmer subset of an extracted H2db transition archive."""
 
     root: Path
     transitions_by_upper_level: dict[int, tuple[H2dbTransition, ...]]
+    # 2s0 -> 2p+1, 2p-1 -> 2s0 and 2p0 -> 2s0 (empty for an older subset).
+    intrashell_transitions: tuple[H2dbTransition, ...] = ()
+
+    def _lower_state_energies(self, field_strength_megagauss: float) -> dict[tuple[int, int, int], float]:
+        """Energy (Ry) of every n=2 substate that starts a Balmer branch."""
+
+        energies: dict[tuple[int, int, int], float] = {}
+        for available_transitions in self.transitions_by_upper_level.values():
+            for transition in available_transitions:
+                key = (
+                    transition.lower_magnetic_quantum_number,
+                    transition.lower_z_parity,
+                    transition.lower_excitation_index,
+                )
+                if key not in energies:
+                    energies[key] = transition.values_at_field(field_strength_megagauss)[2]
+        return energies
+
+    def intrashell_components(
+        self,
+        field_strength_megagauss: float,
+        temperature: FloatArray,
+        *,
+        finite_nuclear_mass: bool = False,
+    ) -> H2dbIntrashellComponents:
+        """Evaluate the n=2 -> 2 components, which exist only in a field.
+
+        They have no field-free line to redistribute, so they carry absolute
+        oscillator strengths: per (isotropically averaged) transition between
+        two substates f = E d / 3 with E in Ry and the H2db dipole strength d
+        in a0^2 (the H2db Halpha sums reproduce f(2s-3p) = 0.4349 and
+        f(2p-3s) + f(2p-3d) = 0.7094). ``lower_state_fraction`` is the LTE
+        share of the n=2 shell in the lower substate, from the same four H2db
+        substate energies as the Balmer components. Positions use the
+        package's hydrogen Rydberg as the Balmer default does, or the
+        finite-mass form of :meth:`balmer_components`. Below the table floor
+        the components lie beyond 20 microns and are omitted (empty result).
+        """
+
+        temperature = np.asarray(temperature, dtype=np.float64)
+        if temperature.ndim != 1 or np.any(temperature <= 0.0):
+            raise ValueError("temperature must be a positive one-dimensional array")
+        transitions = self.intrashell_transitions
+        floor = max(
+            t.beta[0]
+            for group in (*self.transitions_by_upper_level.values(), transitions)
+            for t in group
+        ) * H2DB_REFERENCE_FIELD_MEGAGAUSS
+        if not transitions or field_strength_megagauss < floor:
+            empty = np.zeros(0)
+            return H2dbIntrashellComponents(
+                empty, empty, np.zeros((0, temperature.size)), np.zeros(0, dtype=np.int64)
+            )
+        values = [t.values_at_field(field_strength_megagauss) for t in transitions]
+        energy = np.asarray([item[0] for item in values])
+        dipole = np.asarray([item[1] for item in values])
+        delta_m = np.asarray([t.delta_m for t in transitions], dtype=np.int64)
+        line_energy = energy
+        if finite_nuclear_mass:
+            # As in balmer_components: read at beta/mu^2, subtract
+            # Delta m hbar omega_cp, both in units of the reduced-mass Rydberg.
+            mass_ratio = ELECTRON_PROTON_MASS_RATIO
+            beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
+            line_energy = np.asarray([
+                t.values_at_field(field_strength_megagauss * (1.0 + mass_ratio) ** 2)[0]
+                for t in transitions
+            ]) - 4.0 * beta * mass_ratio * (1.0 + mass_ratio) * delta_m
+        wavelength = 1.0e8 * PLANCK * LIGHT_SPEED / (line_energy * _RYDBERG_ENERGY_ERG)
+
+        lower = self._lower_state_energies(field_strength_megagauss)
+        lower_energy = np.asarray(list(lower.values()))
+        weight = np.exp(
+            -(lower_energy - np.min(lower_energy))[:, np.newaxis]
+            * _RYDBERG_ENERGY_ERG / (BOLTZMANN * temperature[np.newaxis, :])
+        )
+        share = dict(zip(lower, weight / np.sum(weight, axis=0)))
+        fraction = np.asarray([
+            share[(t.lower_magnetic_quantum_number, t.lower_z_parity, t.lower_excitation_index)]
+            for t in transitions
+        ])
+        return H2dbIntrashellComponents(
+            wavelength, np.maximum(0.0, energy * dipole) / 3.0, fraction, delta_m
+        )
 
     def balmer_components(
         self,
@@ -848,11 +943,13 @@ class H2dbTransitionDatabase:
         with a finite proton mass: Delta E = mu Delta E_inf(beta/mu^2)
         - Delta m hbar omega_cp, mu = 1/(1 + m_e/m_p), hbar omega_cp =
         (m_e/m_p) hbar omega_c (Wunner et al. 1985, A&A 149, 102, Eq. 1;
-        Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12a). H2db is the infinite-mass problem; the default scales it to
-        the reduced-mass line centre only. The correction moves sigma
-        components by Delta m (m_e/m_p) hbar omega_c, e.g. -4.6 A for the
-        Halpha 2s0-3p-1 stationary component at 196 MG. Strengths and
-        populations keep the tabulated field.
+        Pavlov & Meszaros 1993, ApJ 416, 752, Eq. 2.12a). H2db is the
+        infinite-mass problem; the default scales it to the reduced-mass line
+        centre only. The -Delta m hbar omega_cp term moves sigma- blueward and
+        sigma+ redward (-4.6 A for the Halpha 2s0-3p-1 stationary component at
+        196 MG); the beta/mu^2 term adds 2 (m_e/m_p) B dlambda/dB, zero at
+        stationary points. In the linear Zeeman regime the two cancel at first
+        order in m_e/m_p. Strengths and populations keep the tabulated field.
         """
 
         transitions = self.transitions_by_upper_level.get(int(upper_level), ())
@@ -976,21 +1073,8 @@ class H2dbTransitionDatabase:
         # decreased the number of absorbers when the four lower substates
         # split.  This partition normalization becomes order unity already at
         # 50 MG and is essential at several hundred MG.
-        lower_state_current: dict[tuple[int, int, int], float] = {}
-        lower_state_reference: dict[tuple[int, int, int], float] = {}
-        for available_transitions in self.transitions_by_upper_level.values():
-            for transition in available_transitions:
-                key = (
-                    transition.lower_magnetic_quantum_number,
-                    transition.lower_z_parity,
-                    transition.lower_excitation_index,
-                )
-                if key not in lower_state_current:
-                    _, _, current_initial = transition.values_at_field(
-                        field_strength_megagauss
-                    )
-                    lower_state_current[key] = current_initial
-                    lower_state_reference[key] = -0.25
+        lower_state_current = self._lower_state_energies(field_strength_megagauss)
+        lower_state_reference = dict.fromkeys(lower_state_current, -0.25)
         current_lower_energy = np.asarray(
             list(lower_state_current.values()), dtype=np.float64
         )
@@ -1101,6 +1185,7 @@ def _read_h2db_cached(path_string: str) -> H2dbTransitionDatabase:
             values["transition_initial_energy_rydberg"], dtype=np.float64
         )
     transitions: dict[int, list[H2dbTransition]] = {}
+    intrashell: list[H2dbTransition] = []
     for index, label in enumerate(labels):
         rows = slice(int(offsets[index]), int(offsets[index + 1]))
         lower_m = -int(label[0])
@@ -1118,6 +1203,16 @@ def _read_h2db_cached(path_string: str) -> H2dbTransitionDatabase:
             transition_energy_rydberg=np.ascontiguousarray(energy[rows]),
             dipole_strength=np.ascontiguousarray(dipole[rows]),
         )
+        if upper_level == 2:
+            # n=2 -> 2 (subset label 2): no Delta m = 0 mirror is needed, the
+            # only pi branch is 2p0 -> 2s0.
+            intrashell.append(H2dbTransition(
+                lower_magnetic_quantum_number=lower_m,
+                upper_magnetic_quantum_number=upper_m,
+                initial_state_energy_rydberg=np.ascontiguousarray(initial[rows]),
+                **base,
+            ))
+            continue
         transitions.setdefault(upper_level, []).append(
             H2dbTransition(
                 lower_magnetic_quantum_number=lower_m,
@@ -1146,6 +1241,7 @@ def _read_h2db_cached(path_string: str) -> H2dbTransitionDatabase:
     return H2dbTransitionDatabase(
         path,
         {level: tuple(items) for level, items in sorted(transitions.items())},
+        tuple(intrashell),
     )
 
 
@@ -1249,6 +1345,7 @@ __all__ = [
     "H2dbBalmerComponents",
     "H2dbEnergyDatabase",
     "H2dbEnergyTrack",
+    "H2dbIntrashellComponents",
     "H2dbTransition",
     "H2dbTransitionDatabase",
     "MotionalStarkTable",

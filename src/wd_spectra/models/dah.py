@@ -103,6 +103,8 @@ class DAHConfig:
     include_finite_nuclear_mass: bool = False
     balmer_line_broadening: Literal["zero_field_stark", "motional"] = "zero_field_stark"
     motional_scale: float = 1.0
+    # The n=2 -> 2 components (2s0 -> 2p+1, 2p-1 -> 2s0, 2p0 -> 2s0; opt-in).
+    include_intrashell_lines: bool = False
     mixing_length_alpha: float | None = None
     # Opt-in; takes precedence over disk_field_bins.
     disk_component_drift_angstrom: float | None = None
@@ -134,6 +136,7 @@ DAH_PAPER_PRESCRIPTION: Mapping[str, object] = MappingProxyType({
     "include_magnetic_eos": False,
     "include_centered_motion": False,
     "include_finite_nuclear_mass": False,
+    "include_intrashell_lines": False,
 })
 
 
@@ -384,9 +387,10 @@ def _surface_cells_sha256(cells: SurfaceCells, *, structure_only: bool = False) 
 
 
 def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) -> DAHConfig:
-    # Line positions enter the synthesis only, so one relaxed structure serves both settings.
+    # Line positions and the n=2 -> 2 lines enter the synthesis only, so one relaxed
+    # structure serves every setting of these options.
     options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
-                   include_finite_nuclear_mass=False,
+                   include_finite_nuclear_mass=False, include_intrashell_lines=False,
                    balmer_line_broadening="zero_field_stark", motional_scale=1.0)
     if custom_surface_cells:
         # A supplied map replaces the built-in geometry controls. The actual
@@ -511,6 +515,7 @@ def compute_dah(
         include_finite_nuclear_mass=config.include_finite_nuclear_mass,
         motional_stark_table=motional,
         motional_scale=config.motional_scale,
+        include_intrashell_lines=config.include_intrashell_lines,
         line_regime="h2db" if strong else "linear-zeeman",
     )
     if not relax_atmosphere and initial_atmosphere is None:
