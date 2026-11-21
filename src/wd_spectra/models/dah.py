@@ -104,6 +104,8 @@ class DAHConfig:
     # Polarimetric output uses signed, uncompressed surface geometry.
     return_stokes: bool = False
     sky_position_angle_deg: float = 0.0
+    # Finite proton mass in the H2db Balmer component positions (opt-in).
+    include_finite_nuclear_mass: bool = False
 
 
 def _validate_stokes_config(config: DAHConfig, *, custom_surface_cells: bool = False) -> None:
@@ -128,6 +130,7 @@ DAH_PAPER_PRESCRIPTION: Mapping[str, object] = MappingProxyType({
     "include_rwa_photoionization": False,
     "include_magnetic_eos": False,
     "include_centered_motion": False,
+    "include_finite_nuclear_mass": False,
 })
 
 
@@ -233,7 +236,10 @@ def _drift_resolved_dipole_cells(
         return field_binned_surface_cells(raw, edges, n_limb_bins=DRIFT_RESOLVED_LIMB_BINS)
     edges = drift_resolved_field_edges(
         sampled,
-        lambda grid: balmer_component_drift_rate(grid, wavelength_range_angstrom, transitions),
+        lambda grid: balmer_component_drift_rate(
+            grid, wavelength_range_angstrom, transitions,
+            finite_nuclear_mass=config.include_finite_nuclear_mass,
+        ),
         float(config.disk_component_drift_angstrom),  # type: ignore[arg-type]
     )
     return field_binned_surface_cells(raw, edges, n_limb_bins=DRIFT_RESOLVED_LIMB_BINS)
@@ -374,7 +380,9 @@ def _surface_cells_sha256(cells: SurfaceCells, *, structure_only: bool = False) 
 
 
 def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) -> DAHConfig:
-    options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.)
+    # Line positions enter the synthesis only, so one relaxed structure serves both settings.
+    options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
+                   include_finite_nuclear_mass=False)
     if custom_surface_cells:
         # A supplied map replaces the built-in geometry controls. The actual
         # field distribution/weights/bounds are identified separately below.
@@ -491,6 +499,7 @@ def compute_dah(
         include_rwa_photoionization=config.include_rwa_photoionization,
         include_magnetic_eos=config.include_magnetic_eos,
         include_centered_motion=config.include_centered_motion,
+        include_finite_nuclear_mass=config.include_finite_nuclear_mass,
         line_regime="h2db" if strong else "linear-zeeman",
     )
     if not relax_atmosphere and initial_atmosphere is None:
