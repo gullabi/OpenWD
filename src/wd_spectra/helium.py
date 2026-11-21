@@ -571,18 +571,43 @@ _HELIUM_MINUS_FREE_FREE_DESCRIPTIONS = {
         "partial-wave shape below 0.5063 micron within John's temperatures; "
         "Carbon-1969 fit to John-1968 elsewhere"
     ),
+    "john1968-shape": (
+        "John-1994 inside tabulated T/lambda domain; John edge value times "
+        "the Carbon-1969/John-1968 wavelength shape below 0.5063 micron "
+        "within John's temperatures; Carbon-1969 fit to John-1968 elsewhere"
+    ),
 }
 
 
-def helium_minus_free_free_description(prescription: str) -> str:
+# Prescription used when a caller does not choose one (DZ and DQ choose
+# "partial-wave" explicitly).  "john1968-shape" keeps John (1994) wherever he
+# tabulated it and continues below his 0.5063-micron edge with John's edge
+# value times the Carbon et al. (1969)/John (1968) wavelength shape: no
+# opacity step at 5063 A, and the ultraviolet level of the Montreal DB/DBA
+# grids.  "automatic" (the default before 2026-11-18) switches to the Carbon
+# fit itself at the edge, 3-24% higher, leaving a flux step at 5063 A in
+# cool helium-rich atmospheres.  The two differ only at lambda < 0.5063
+# micron and 1400 <= T <= 10080 K.
+HELIUM_MINUS_FREE_FREE_DEFAULT = "john1968-shape"
+
+
+def resolve_helium_minus_prescription(prescription: str | None) -> str:
+    """Return ``prescription``, or the module default when it is None."""
+
+    return HELIUM_MINUS_FREE_FREE_DEFAULT if prescription is None else prescription
+
+
+def helium_minus_free_free_description(prescription: str | None) -> str:
     """Metadata wording for a ``helium_minus_free_free_coefficient`` choice."""
 
     try:
-        return _HELIUM_MINUS_FREE_FREE_DESCRIPTIONS[prescription]
+        return _HELIUM_MINUS_FREE_FREE_DESCRIPTIONS[
+            resolve_helium_minus_prescription(prescription)
+        ]
     except KeyError:
         raise ValueError(
-            "prescription must be 'automatic', 'john1968', 'john1994', or "
-            "'partial-wave'"
+            "prescription must be 'automatic', 'john1968', 'john1994', "
+            "'partial-wave', or 'john1968-shape'"
         ) from None
 
 
@@ -591,7 +616,7 @@ def helium_minus_free_free_coefficient(
     temperature: ArrayLike,
     *,
     prescription: Literal[
-        "automatic", "john1968", "john1994", "partial-wave"
+        "automatic", "john1968", "john1994", "partial-wave", "john1968-shape"
     ] = "automatic",
 ) -> FloatArray:
     """Return a He-minus free-free coefficient in cm^4 dyne^-1.
@@ -604,6 +629,11 @@ def helium_minus_free_free_coefficient(
     calculation (e-He pseudopotential fitted to Nesbet 1979 phase shifts;
     it reproduces John 1994 to 2-3% at 0.5-15 micron).  It is continuous at
     the edge.
+
+    ``prescription='john1968-shape'`` is the same construction with the
+    wavelength shape of the Carbon et al. fit to John (1968) below the edge:
+    continuous at 0.5063 micron, and in the ultraviolet lower than that fit
+    only by its 3-24% excess over John at the edge.
 
     ``prescription='automatic'`` uses the more accurate John (1994) table
     only inside its published wavelength and temperature domain
@@ -627,9 +657,10 @@ def helium_minus_free_free_coefficient(
         raise ValueError("wavelength_micron must contain finite positive values")
     if np.any(~np.isfinite(temperature)) or np.any(temperature <= 0.0):
         raise ValueError("temperature must contain finite positive values")
-    if prescription not in ("automatic", "john1968", "john1994", "partial-wave"):
+    if prescription not in ("automatic", "john1968", "john1994", "partial-wave", "john1968-shape"):
         raise ValueError(
-            "prescription must be 'automatic', 'john1968', 'john1994', or 'partial-wave'"
+            "prescription must be 'automatic', 'john1968', 'john1994', "
+            "'partial-wave', or 'john1968-shape'"
         )
     john_1968 = _john_1968_helium_minus_free_free_coefficient(
         wavelength, temperature
@@ -700,6 +731,19 @@ def helium_minus_free_free_coefficient(
         & (temperature <= 5040.0 / _JOHN_THETA[0])
     )
     john_1994_domain = (wavelength >= _JOHN_WAVELENGTH_UM[0]) & john_temperature
+    if prescription == "john1968-shape":
+        # Below the edge: John's edge value times the wavelength shape of the
+        # Carbon et al. fit to John (1968), so the UV keeps the John-1968
+        # dependence (as the Montreal DB/DBA grids appear to) while the
+        # coefficient stays continuous at 0.5063 micron.
+        edge_1968 = _john_1968_helium_minus_free_free_coefficient(
+            np.full_like(wavelength, _JOHN_WAVELENGTH_UM[0]), temperature
+        )
+        shaped = edge * 1.0e-26 * john_1968 / np.maximum(edge_1968, np.finfo(float).tiny)
+        return np.where(
+            john_1994_domain, john_1994,
+            np.where(john_temperature, shaped, john_1968),
+        )
     if prescription == "partial-wave":
         # Below the edge: John's edge value times the partial-wave shape.
         theta_pw = 5040.0 / temperature
@@ -847,7 +891,7 @@ def helium_continuum_mass_absorption_coefficient(
     include_helium_three_body_cia: bool = True,
     include_rydberg_bound_free: bool = True,
     helium_minus_correction: ArrayLike | None = None,
-    helium_minus_prescription: str = "automatic",
+    helium_minus_prescription: str | None = None,
 ) -> FloatArray:
     """Return the implemented LTE pure-He continuum in cm^2 g^-1.
 
@@ -906,7 +950,9 @@ def helium_continuum_mass_absorption_coefficient(
     helium_minus = (
         helium_minus_free_free_coefficient(
             wavelength[:, np.newaxis] * 1.0e-4, temperature,
-            prescription=helium_minus_prescription,
+            prescription=resolve_helium_minus_prescription(
+                helium_minus_prescription
+            ),
         )
         * neutral * electron_pressure
     )

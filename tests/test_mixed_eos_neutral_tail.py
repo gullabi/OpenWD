@@ -85,16 +85,17 @@ def test_neutral_and_partly_ionized_mixture_satisfies_saha_and_conservation():
         hydrogen.proton_density*state.electron_density*hydrogen.internal_partition_function,
         rtol=5.e-12, atol=0,
     )
+    hydride = state.helium_hydride_ion_density  # HeH+: one H, one He, one charge, one particle
     np.testing.assert_allclose(
-        hydrogen.neutral_h_density+hydrogen.proton_density,
+        hydrogen.neutral_h_density+hydrogen.proton_density+hydride,
         state.hydrogen_nuclei_density, rtol=2.e-14, atol=0,
     )
     np.testing.assert_allclose(
-        hydrogen.proton_density+helium.singly_ionized_he_density+2*helium.doubly_ionized_he_density,
+        hydrogen.proton_density+hydride+helium.singly_ionized_he_density+2*helium.doubly_ionized_he_density,
         state.electron_density, rtol=2.e-11, atol=0,
     )
     np.testing.assert_allclose(
-        BOLTZMANN*temperature*(state.hydrogen_nuclei_density+state.helium_nuclei_density+state.electron_density),
+        BOLTZMANN*temperature*(state.hydrogen_nuclei_density+state.helium_nuclei_density-hydride+state.electron_density),
         pressure, rtol=2.e-14, atol=0,
     )
 

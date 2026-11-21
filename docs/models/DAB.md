@@ -55,9 +55,13 @@ The command-line equivalent is
 ## Physics
 
 - **Equation of state.** One charge-neutral solution for H I, H II, He I,
-  He II and He III, with Hummer–Mihalas/Q-MHD occupation probabilities. Both
-  elements enter the pressure, density, thermodynamic derivatives and
-  structure.
+  He II, He III and HeH⁺, with Hummer–Mihalas/Q-MHD occupation probabilities.
+  Both elements enter the pressure, density, thermodynamic derivatives and
+  structure. HeH⁺ (H⁺ + He ⇌ HeH⁺; D₀ from Pachucki & Komasa 2012, ExoMol
+  partition function) binds a large share of the protons in cool, dense
+  helium-rich gas: about 40% at τ = 1 in a 7000 K, log N(H)/N(He) = −3
+  model, raising the electron density by 12%. Its own opacity is not
+  included.
 - **Molecules** (`run_model`, metal-free). H₂, H₂⁺, H⁻ and H₃⁺ by mass
   action. The molecular terms vanish where molecules are rare, so there is no
   switch in Teff or log g.
