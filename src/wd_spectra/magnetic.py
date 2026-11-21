@@ -48,7 +48,7 @@ from .atmosphere import Atmosphere
 from .constants import (
     BOLTZMANN, ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, HYDROGEN_MASS, LIGHT_SPEED, PI, PLANCK,
 )
-from .magnetic_atomic import H2dbEnergyDatabase, H2dbTransitionDatabase, MotionalStarkTable
+from .magnetic_atomic import H2dbEnergyDatabase, H2dbTransition, H2dbTransitionDatabase, MotionalStarkTable
 from .magnetic_continuum import explicit_rwa_hydrogen_bound_free_mass_absorption_coefficient
 from .molecules import H2H2CollisionInducedAbsorptionTable
 from .opacity import BALMER_LINES
@@ -606,6 +606,130 @@ def h2db_intrashell_manifolds(
     return result
 
 
+def _paschen_brackett_templates(
+    atmosphere: Atmosphere, dispersion: bool
+) -> dict[tuple[int, int], BalmerLineTemplate]:
+    """Zero-field Paschen and Brackett line opacities on their own meshes.
+
+    Each is OpenWD's Tremblay--Bergeron Stark--Doppler line opacity
+    (occupation-probability population of the lower shell, survival of the
+    upper level, stimulated emission at the rest frequency), without the
+    series' edge tapers, on a mesh as the Balmer templates use.
+    """
+
+    from .opacity import (
+        BRACKETT_LINES, PASCHEN_LINES, _higher_hydrogen_series_mass_absorption_coefficient,
+    )
+    from .stark import default_brackett_stark_table, default_paschen_stark_table
+
+    templates = {}
+    for table, lines in ((default_paschen_stark_table(), PASCHEN_LINES),
+                         (default_brackett_stark_table(), BRACKETT_LINES)):
+        for line in lines:
+            center = line.wavelength_vacuum_angstrom
+            mesh = np.unique(np.concatenate((
+                center + np.arange(-20.0, 20.0001, 0.02),
+                center - np.geomspace(20.0, 0.75 * center, 300),
+                center + np.geomspace(20.0, 3.0 * center, 400),
+            )))
+            opacity = _higher_hydrogen_series_mass_absorption_coefficient(
+                atmosphere, mesh, stark_table=table, lines=(line,),
+                wavelength_limits_angstrom=(mesh[0] - 1.0, mesh[-1] + 1.0),
+                edge_taper_width_angstrom=(1.0e-9, 1.0e-9),
+            )
+            templates[line.lower_level, line.upper_level] = BalmerLineTemplate(
+                mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if dispersion else None)
+    return templates
+
+
+def h2db_paschen_brackett_manifolds(
+    atmosphere: Atmosphere,
+    wavelength_angstrom: ArrayLike,
+    field_strength_megagauss: float,
+    transitions: dict[tuple[int, int], tuple[H2dbTransition, ...]],
+    energies: H2dbEnergyDatabase,
+    *,
+    local: Atmosphere | None = None,
+    templates: dict[tuple[int, int], BalmerLineTemplate] | None = None,
+    dispersion: bool = False,
+    finite_nuclear_mass: bool = False,
+) -> PolarizedOpacity | tuple[PolarizedOpacity, PolarizedOpacity]:
+    """Return the manifolds of the H2db components with lower level n=3, 4.
+
+    Component j of the zero-field line n -> n' (Paschen, Brackett) adds
+    ``x_j E_j d_j / f_nn' * stim(nu_j)/stim(nu_0) * phi_nn'(nu - nu_j + nu_0)``
+    to manifold sign(Delta m), as the Balmer route redistributes its lines:
+    phi_nn' is the zero-field line opacity of ``atmosphere`` translated in
+    frequency (with its dispersion partner); E_j d_j is the component's
+    Delta-m-resolved oscillator strength from H2db (three times the
+    isotropic f = E d / 3); x_j is the LTE share of the n shell in the lower
+    substate, over all n^2 spin-down substates from the H2db energies.  At
+    B -> 0 the x_j E_j d_j of each manifold sum to f_nn', so the isotropic
+    mean is phi_nn'.  Unlike the Balmer route, each line is not renormalized
+    to its zero-field strength, so strength that the field moves between
+    zero-field lines of the same lower level is kept.  Upper levels beyond a
+    Stark table (Brackett n' > 14) borrow its last line.  The shell
+    population follows ``local`` (the field's EOS) as the Balmer lines do.
+    Below the table floor the components lie outside 3400--8000 A and are
+    omitted; above beta = 0.25 the subset ends and a field raises.
+    """
+
+    from .magnetic_atomic import (
+        _RYDBERG_ENERGY_ERG, H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms,
+    )
+    from .opacity import BRACKETT_LINES, PASCHEN_LINES
+
+    wavelength = _validate_grid(wavelength_angstrom)
+    field = _validate_field(field_strength_megagauss)
+    if templates is None:
+        templates = _paschen_brackett_templates(atmosphere, dispersion)
+    local = atmosphere if local is None else local
+    temperature = atmosphere.temperature
+    shape = (wavelength.size, atmosphere.n_depth)
+    manifolds = {-1: np.zeros(shape), 0: np.zeros(shape), 1: np.zeros(shape)}
+    phases = {-1: np.zeros(shape), 0: np.zeros(shape), 1: np.zeros(shape)}
+    floor = max(t.beta[0] for group in transitions.values() for t in group)
+    if field / H2DB_REFERENCE_FIELD_MEGAGAUSS >= floor:
+        table_field, proton_cyclotron = (
+            _finite_mass_balmer_terms(field) if finite_nuclear_mass else (field, 0.0))
+        lines = {(line.lower_level, line.upper_level): line for line in (*PASCHEN_LINES, *BRACKETT_LINES)}
+        inverse_kt = _RYDBERG_ENERGY_ERG / (BOLTZMANN * temperature)
+        for lower in (3, 4):
+            shell = np.asarray([
+                energies.spin_down_energy_rydberg(lower, orbital, magnetic, field)
+                for orbital in range(lower) for magnetic in range(-orbital, orbital + 1)
+            ])
+            partition = np.sum(np.exp(-(shell - shell.min())[:, np.newaxis] * inverse_kt), axis=0)
+            population = _population_scale(atmosphere, local, lower) / partition
+            for (level, upper), group in transitions.items():
+                if level != lower:
+                    continue
+                line = lines[lower, min(upper, max(u for n, u in lines if n == lower))]
+                template = templates[lower, line.upper_level]
+                rest_frequency = LIGHT_SPEED / (line.wavelength_vacuum_angstrom * 1.0e-8)
+                for transition in group:
+                    energy, dipole, initial = transition.values_at_field(field)
+                    if energy * dipole <= 0.0:
+                        continue
+                    line_energy = (transition.values_at_field(table_field)[0]
+                                   - proton_cyclotron * transition.delta_m) if finite_nuclear_mass else energy
+                    frequency = line_energy * _RYDBERG_ENERGY_ERG / PLANCK
+                    weight = (
+                        energy * dipole / line.absorption_oscillator_strength
+                        * np.exp(-(initial - shell.min()) * inverse_kt) * population
+                        * _stimulated_emission_ratio(temperature, rest_frequency, frequency)
+                    )[np.newaxis, :]
+                    q = int(np.sign(transition.delta_m))
+                    shift = frequency - rest_frequency
+                    manifolds[q] += weight * _translated_profile(template, wavelength, shift)
+                    if dispersion:
+                        phases[q] += weight * _translated_profile(template, wavelength, shift, template.dispersion)
+    result = PolarizedOpacity(manifolds[-1], manifolds[0], manifolds[1])
+    if dispersion:
+        return result, PolarizedOpacity(phases[-1], phases[0], phases[1])
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Continuum
 
@@ -991,6 +1115,7 @@ def balmer_component_drift_rate(
     minimum_relative_strength: float = 0.01,
     finite_nuclear_mass: bool = False,
     intrashell_lines: bool = False,
+    paschen_brackett_transitions: dict[tuple[int, int], tuple[H2dbTransition, ...]] | None = None,
 ) -> FloatArray:
     """Return the fastest component drift ``max |d lambda / dB|`` in A/MG.
 
@@ -1006,7 +1131,8 @@ def balmer_component_drift_rate(
     nuclear mass, the wavelength calculation uses the same corrected H2db
     positions as synthesis. The strength proxy still uses the physical field.
     ``intrashell_lines`` adds the n=2 -> 2 components as one more group, at
-    the positions of :meth:`H2dbTransitionDatabase.intrashell_components`.
+    the positions of :meth:`H2dbTransitionDatabase.intrashell_components`;
+    ``paschen_brackett_transitions`` adds each n=3, 4 line as a group.
     """
 
     from .magnetic_atomic import (
@@ -1055,6 +1181,8 @@ def balmer_component_drift_rate(
     ]
     if intrashell_lines and transitions.intrashell_transitions:
         groups.append((transitions.intrashell_transitions, 1.0e8 * PLANCK * LIGHT_SPEED / _RYDBERG_ENERGY_ERG))
+    for group in (paschen_brackett_transitions or {}).values():
+        groups.append((group, 1.0e8 * PLANCK * LIGHT_SPEED / _RYDBERG_ENERGY_ERG))
     strong_drift = np.zeros(beta.size)
     for group, wavelength_energy in groups:
         wavelengths, proxies = [], []
@@ -1230,6 +1358,8 @@ class MagneticPhysics:
     # Set for the motional Stark kernel (DAHConfig.balmer_line_broadening).
     motional_stark_table: MotionalStarkTable | None = None
     motional_scale: float = 1.0
+    # n=3, 4 components (h2db_paschen_brackett_manifolds); None = off.
+    paschen_brackett_transitions: dict[tuple[int, int], tuple[H2dbTransition, ...]] | None = None
 
     def regime(self, maximum_field_megagauss: float) -> str:
         if self.line_regime is not None:
@@ -1312,16 +1442,16 @@ def _local_atmosphere(
     )
 
 
-def _population_scale(reference: Atmosphere, local: Atmosphere) -> FloatArray:
-    """Local/reference n=2 population per gram (Balmer lower level)."""
+def _population_scale(reference: Atmosphere, local: Atmosphere, level: int = 2) -> FloatArray:
+    """Local/reference population per gram of shell ``level`` (Balmer: n=2)."""
 
     if local is reference:
         return np.ones(reference.n_depth)
     from .opacity import _atmosphere_level_distribution
 
-    reference_n2 = _atmosphere_level_distribution(reference, 2).population_density[..., 1]
-    local_n2 = _atmosphere_level_distribution(local, 2).population_density[..., 1]
-    return (local_n2 / local.mass_density) / (reference_n2 / reference.mass_density)
+    reference_n = _atmosphere_level_distribution(reference, max(level, 2)).population_density[..., level - 1]
+    local_n = _atmosphere_level_distribution(local, max(level, 2)).population_density[..., level - 1]
+    return (local_n / local.mass_density) / (reference_n / reference.mass_density)
 
 
 def _validate_surface_cells(cells: SurfaceCells, *, require_azimuth: bool = False) -> None:
@@ -1463,6 +1593,20 @@ def synthesize_magnetic_hydrogen_spectrum(
                     lines = lines + intrashell
                 else:
                     lines, line_dispersion = lines + intrashell[0], line_dispersion + intrashell[1]
+            if physics.paschen_brackett_transitions is not None and regime == "h2db" and field > 0.0:
+                key = ("paschen-brackett", line_dispersion is not None)
+                if key not in cache:
+                    cache[key] = _paschen_brackett_templates(atmosphere, line_dispersion is not None)
+                extra = h2db_paschen_brackett_manifolds(
+                    atmosphere, wavelength, field, physics.paschen_brackett_transitions,
+                    physics.energies,  # type: ignore[arg-type]
+                    local=local, templates=cache[key], dispersion=line_dispersion is not None,
+                    finite_nuclear_mass=physics.include_finite_nuclear_mass,
+                )
+                if line_dispersion is None:
+                    lines = lines + extra
+                else:
+                    lines, line_dispersion = lines + extra[0], line_dispersion + extra[1]
             unpolarized, rwa = magnetic_continuum(
                 local,
                 wavelength,
@@ -1674,6 +1818,7 @@ __all__ = [
     "motional_stark_profile",
     "motional_stark_shift_hz",
     "h2db_intrashell_manifolds",
+    "h2db_paschen_brackett_manifolds",
     "linear_zeeman_triplet",
     "magnetic_continuum",
     "rwa_dispersion",

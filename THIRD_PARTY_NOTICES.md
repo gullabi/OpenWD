@@ -234,6 +234,14 @@ without modification (transition energies and dipole strengths stored as
 single precision). `tools/build_h2db_subset.py` rebuilds it from the public
 archive. Cite Schimeczek & Wunner when using DAH models.
 
+`src/wd_spectra/data/runtime/cache/h2db/h2db_paschen_brackett_subset.npz`
+(read only with `include_paschen_brackett_lines=True`) is a further subset of
+the same database under the same licence: the transitions with lower level
+n=3, 4 and upper n' > n for beta <= 0.25 whose oscillator strength reaches
+1e-3 inside 3400-8000 A, with rows thinned as
+`tools/build_h2db_subset.py --paschen-brackett` documents; kept rows are
+copied without modification.
+
 ## DAH Kurucz/Griem profile prescription
 
 `src/wd_spectra/kurucz_griem.py` implements the equations and historical

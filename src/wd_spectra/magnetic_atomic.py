@@ -1211,7 +1211,10 @@ def _read_h2db_cached(path_string: str) -> H2dbTransitionDatabase:
             transition_energy_rydberg=np.ascontiguousarray(energy[rows]),
             dipole_strength=np.ascontiguousarray(dipole[rows]),
         )
-        if upper_level == 2:
+        if label.size > 7:
+            # Paschen/Brackett subset: key (lower level, upper level).
+            upper_level = (int(label[7]), upper_level)
+        elif upper_level == 2:
             # n=2 -> 2 (subset label 2): no Delta m = 0 mirror is needed, the
             # only pi branch is 2p0 -> 2s0.
             intrashell.append(H2dbTransition(
@@ -1244,6 +1247,8 @@ def _read_h2db_cached(path_string: str) -> H2dbTransitionDatabase:
                     **base,
                 )
             )
+    if labels.shape[1] > 7:
+        return {key: tuple(items) for key, items in sorted(transitions.items())}  # type: ignore[return-value]
     if not all(level in transitions for level in range(3, 7)):
         raise ValueError("H2db subset is missing one or more of Halpha through Hdelta")
     return H2dbTransitionDatabase(
@@ -1259,6 +1264,18 @@ def read_h2db_transition_database(
     """Read and cache the Balmer transitions of the bundled H2db subset."""
 
     return _read_h2db_cached(str(Path(path).expanduser().resolve()))
+
+
+def read_h2db_paschen_brackett_transitions(
+    path: str | Path,
+) -> dict[tuple[int, int], tuple[H2dbTransition, ...]]:
+    """Read the n=3, 4 subset (``tools/build_h2db_subset.py --paschen-brackett``).
+
+    Keys are (lower, upper) principal quantum numbers of the zero-field line;
+    the state conventions are those of the Balmer subset.
+    """
+
+    return _read_h2db_cached(str(Path(path).expanduser().resolve()))  # type: ignore[return-value]
 
 
 @lru_cache(maxsize=4)
@@ -1358,6 +1375,7 @@ __all__ = [
     "H2dbTransitionDatabase",
     "MotionalStarkTable",
     "read_h2db_energy_database",
+    "read_h2db_paschen_brackett_transitions",
     "read_motional_stark_table",
     "read_h2db_transition_database",
 ]
