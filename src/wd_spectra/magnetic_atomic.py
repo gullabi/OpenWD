@@ -902,14 +902,10 @@ class H2dbTransitionDatabase:
         delta_m = np.asarray([t.delta_m for t in transitions], dtype=np.int64)
         line_energy = energy
         if finite_nuclear_mass:
-            # As in balmer_components: read at beta/mu^2, subtract
-            # Delta m hbar omega_cp, both in units of the reduced-mass Rydberg.
-            mass_ratio = ELECTRON_PROTON_MASS_RATIO
-            beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
-            line_energy = np.asarray([
-                t.values_at_field(field_strength_megagauss * (1.0 + mass_ratio) ** 2)[0]
-                for t in transitions
-            ]) - 4.0 * beta * mass_ratio * (1.0 + mass_ratio) * delta_m
+            # As in balmer_components (see _finite_mass_balmer_terms).
+            table_field, proton_cyclotron = _finite_mass_balmer_terms(field_strength_megagauss)
+            line_energy = np.asarray([t.values_at_field(table_field)[0] for t in transitions]) \
+                - proton_cyclotron * delta_m
         wavelength = 1.0e8 * PLANCK * LIGHT_SPEED / (line_energy * _RYDBERG_ENERGY_ERG)
 
         lower = self._lower_state_energies(field_strength_megagauss)

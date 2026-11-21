@@ -990,6 +990,7 @@ def balmer_component_drift_rate(
     maximum_upper_level: int = MAXIMUM_H2DB_BALMER_UPPER_LEVEL,
     minimum_relative_strength: float = 0.01,
     finite_nuclear_mass: bool = False,
+    intrashell_lines: bool = False,
 ) -> FloatArray:
     """Return the fastest component drift ``max |d lambda / dB|`` in A/MG.
 
@@ -1004,9 +1005,13 @@ def balmer_component_drift_rate(
     omitted: they only select which components are counted. With finite
     nuclear mass, the wavelength calculation uses the same corrected H2db
     positions as synthesis. The strength proxy still uses the physical field.
+    ``intrashell_lines`` adds the n=2 -> 2 components as one more group, at
+    the positions of :meth:`H2dbTransitionDatabase.intrashell_components`.
     """
 
-    from .magnetic_atomic import H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms
+    from .magnetic_atomic import (
+        _RYDBERG_ENERGY_ERG, H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms,
+    )
 
     field = np.asarray(field_strength_megagauss, dtype=np.float64)
     if (field.ndim != 1 or field.size < 2 or np.any(~np.isfinite(field))
@@ -1040,14 +1045,20 @@ def balmer_component_drift_rate(
     if finite_nuclear_mass:
         table_field, proton_cyclotron = _finite_mass_balmer_terms(field[tabulated])
         table_beta = table_field / H2DB_REFERENCE_FIELD_MEGAGAUSS
+    # Each group: its transitions and the wavelength (A) times energy (Ry).
+    groups = [
+        (transitions.transitions_by_upper_level[line.upper_level],
+         line.wavelength_vacuum_angstrom * (0.25 - 1.0 / line.upper_level**2))
+        for line in BALMER_LINES
+        if line.upper_level <= maximum_upper_level
+        and line.upper_level in transitions.transitions_by_upper_level
+    ]
+    if intrashell_lines and transitions.intrashell_transitions:
+        groups.append((transitions.intrashell_transitions, 1.0e8 * PLANCK * LIGHT_SPEED / _RYDBERG_ENERGY_ERG))
     strong_drift = np.zeros(beta.size)
-    for line in BALMER_LINES:
-        level = line.upper_level
-        if level > maximum_upper_level or level not in transitions.transitions_by_upper_level:
-            continue
-        zero_energy = 0.25 - 1.0 / level**2
+    for group, wavelength_energy in groups:
         wavelengths, proxies = [], []
-        for transition in transitions.transitions_by_upper_level[level]:
+        for transition in group:
             inside = (beta >= transition.beta[0]) & (beta <= transition.beta[-1])
             energy = np.interp(beta, transition.beta, transition.transition_energy_rydberg)
             line_energy = energy
@@ -1065,7 +1076,7 @@ def balmer_component_drift_rate(
             )
             valid = inside & (line_energy > 0.0)
             safe_energy = np.where(valid, line_energy, 1.0)
-            wavelength = line.wavelength_vacuum_angstrom * zero_energy / safe_energy
+            wavelength = wavelength_energy / safe_energy
             wavelengths.append(np.where(valid, wavelength, np.nan))
             proxies.append(np.where(valid, np.maximum(0.0, energy * dipole), 0.0))
         wavelength = np.asarray(wavelengths)

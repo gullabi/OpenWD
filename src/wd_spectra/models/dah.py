@@ -245,6 +245,7 @@ def _drift_resolved_dipole_cells(
         lambda grid: balmer_component_drift_rate(
             grid, wavelength_range_angstrom, transitions,
             finite_nuclear_mass=config.include_finite_nuclear_mass,
+            intrashell_lines=config.include_intrashell_lines,
         ),
         float(config.disk_component_drift_angstrom),  # type: ignore[arg-type]
     )
