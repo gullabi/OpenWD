@@ -426,26 +426,31 @@ def test_mixed_hydrogen_helium_eos_conserves_pressure_nuclei_and_charge():
     )
     hydrogen = state.hydrogen_lte_state
     helium = state.helium_lte_state
+    # HeH+ (default) holds one H and one He nucleus, one charge, one particle.
+    hydride = state.helium_hydride_ion_density
+    assert hydride is not None
     np.testing.assert_allclose(
         state.hydrogen_nuclei_density / state.helium_nuclei_density,
         1.0e-2,
         rtol=2.0e-14,
     )
     np.testing.assert_allclose(
-        hydrogen.neutral_h_density + hydrogen.proton_density,
+        hydrogen.neutral_h_density + hydrogen.proton_density + hydride,
         state.hydrogen_nuclei_density,
         rtol=2.0e-14,
     )
     np.testing.assert_allclose(
         helium.neutral_he_density
         + helium.singly_ionized_he_density
-        + helium.doubly_ionized_he_density,
+        + helium.doubly_ionized_he_density
+        + hydride,
         state.helium_nuclei_density,
         rtol=2.0e-14,
     )
     np.testing.assert_allclose(
         state.electron_density,
         hydrogen.proton_density
+        + hydride
         + helium.singly_ionized_he_density
         + 2.0 * helium.doubly_ionized_he_density,
         rtol=2.0e-11,
@@ -453,6 +458,7 @@ def test_mixed_hydrogen_helium_eos_conserves_pressure_nuclei_and_charge():
     reconstructed_pressure = BOLTZMANN * temperature * (
         state.hydrogen_nuclei_density
         + state.helium_nuclei_density
+        - hydride
         + state.electron_density
     )
     np.testing.assert_allclose(reconstructed_pressure, pressure, rtol=2.0e-14)

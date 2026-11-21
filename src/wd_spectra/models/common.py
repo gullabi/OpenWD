@@ -39,10 +39,10 @@ _MODEL_REQUEST_FINGERPRINT_SCHEMA = 2
 _MODEL_PHYSICS_REVISION = "openwd-0.1.3-qmhd-undoubled-v5-flux-conserving"
 _MODEL_FAMILY_PHYSICS_REVISIONS = {
     "DA": "hydrogen-stark-density-floor-2026-10-05:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10",
-    "DB": "helium-reos3-c1-2026-10-23",
-    "DAB": "hydrogen-stark-density-floor-2026-10-05:default-feii-kurucz-uv-2026-10-12:neutral-trace-h-metal-widths-2026-10-12:helium-reos3-c1-2026-10-23:normalized-metal-levels-2026-10-24:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10",
+    "DB": "helium-reos3-c1-2026-10-23:he-minus-john1968-shape-2026-11-19",
+    "DAB": "hydrogen-stark-density-floor-2026-10-05:default-feii-kurucz-uv-2026-10-12:neutral-trace-h-metal-widths-2026-10-12:helium-reos3-c1-2026-10-23:normalized-metal-levels-2026-10-24:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10:he-minus-john1968-shape-heh-plus-mixed-eos-2026-11-19",
     "DQ": "dq-shared-solver-v1:helium-reos3-ideal-excess:carbon-red-wing-boltzmann:rogers-young-he-minus:partial-wave-he-minus-2026-10-29",
-    "DAO": "hydrogen-stark-density-floor-2026-10-05:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10",
+    "DAO": "hydrogen-stark-density-floor-2026-10-05:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10:heh-plus-mixed-eos-2026-11-19",
     "DAH": "dah-rwa-magnetic-eos-v5:hydrogen-stark-density-floor-2026-10-05:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10",
     # Shared metal physics revised by the 2026-09-30 DZ audit: ground-term
     # bound-free populations, 1/Z^2 Unsold radii, frequency Voigt profiles,

@@ -1,0 +1,91 @@
+{
+ "reason": "Mixed H/He EOS includes HeH+ by default; He- free-free default is john1968-shape (continuous at John's 0.5063-micron edge)",
+ "base_commit": "f08085a94e1134e5ce89ae6a1df2ca2a210a08fc",
+ "capture_recipe": "research/capture_heh_mixed_heminus_controls.py",
+ "capture_recipe_sha256": "26f7bab1d13b2921f21e53699a1a95b07a8ec2323c255d83a3b40409b4108cca",
+ "source_sha256_at_capture": {
+  "src/wd_spectra/eos.py": "b4d8c329cd5529d69f30ffe4a9221045d20cd2a72fbeadb28e61f20c9e2be166",
+  "src/wd_spectra/_mixed_molecules.py": "28f942d41644d87f2bf9fae46f45f14f21e237e9652881433d4a0b2154eae12b",
+  "src/wd_spectra/helium.py": "5746eb7148335d6bfaec83e108771f627530906dcc55ffdad94c4f815f7c5f4d",
+  "src/wd_spectra/atmosphere.py": "6222904b82c5cddde2086271e91fa6bb44e37491baee37c65d776dc7044b6cf4",
+  "src/wd_spectra/spectrum.py": "f2e83acf5821cd573bfddd7995968159e702e0d3e2080ce352e1869d1ddb437f",
+  "src/wd_spectra/molecules.py": "a3527fa0c0dbbd8e3ee285e2e0417387f36e3cfbb2925787f67cb47124018264",
+  "src/wd_spectra/models/common.py": "90a63d5fe4499adf608f5cbef3bcabc680601969ce3bfd10372759348534ffb6",
+  "research/capture_heh_mixed_heminus_controls.py": "26f7bab1d13b2921f21e53699a1a95b07a8ec2323c255d83a3b40409b4108cca"
+ },
+ "python": "3.9.16",
+ "numpy": "1.26.4",
+ "previous_defaults": {
+  "MIXED_HELIUM_HYDRIDE_ION_DEFAULT": false,
+  "HELIUM_MINUS_FREE_FREE_DEFAULT": "automatic"
+ },
+ "current_defaults": {
+  "MIXED_HELIUM_HYDRIDE_ION_DEFAULT": true,
+  "HELIUM_MINUS_FREE_FREE_DEFAULT": "john1968-shape"
+ },
+ "replaced": [
+  "dab-9000",
+  "dab-20000"
+ ],
+ "sdb_fixed_state_replaced": true,
+ "sdb_flux_control_retained": true,
+ "frozen_atmospheres_and_grids_unchanged": true,
+ "tolerances_changed": false,
+ "montreal_comparison": "frozen dab-9000 structure vs Montreal 9000 K/log g 8/log H/He -2: john1968-shape within 0.2-1.6% from 2000 A to 1 micron, no step at 5063 A (previous 0.71%); self-consistent 7500 K/log g 8/-2 cold starts within ~1.6% above 2500 A (cool_dba_heh/ research scripts, not in this repository)",
+ "comparisons": {
+  "dab-9000": {
+   "frozen_structure": "tests/data/spectral_regressions/dab-9000.npz",
+   "frozen_structure_sha256": "e72b5953814079264569f178bf89d128555eb308ada600ec999d162043139f72",
+   "previous_control_sha256": "87e197d05cf85ce41e1894f04968d112a1fa09c4338240e2f30d1dad36f3b55c",
+   "new_control_sha256": "663a085094c5fb190e24de60eced0cbc0b2a5206ad90a86f5ea0f8019a4749f5",
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 2235,
+   "maximum_relative_change": 0.005089589859286203,
+   "maximum_change_wavelength_angstrom": 5062.0,
+   "pixels_changed_over_0p1_percent": 2032,
+   "integrated_relative_change": {
+    "1150-3000": 0.004043563178654361,
+    "3000-5063": 0.004518283642121044,
+    "5063-7000": -0.0017334731066852287,
+    "7000-300000": -0.0012856709003714153
+   },
+   "log_flux_jump_across_5063_angstrom": {
+    "previous": 0.006252623649753857,
+    "new": -0.0007734155590239364
+   }
+  },
+  "dab-20000": {
+   "frozen_structure": "tests/data/spectral_regressions/dab-20000.npz",
+   "frozen_structure_sha256": "a10ac50017df7c63d8923540e743e1e838bacd2f490ed43d2c2cde168d5f512a",
+   "previous_control_sha256": "e778bab26df01e10e8f71bee9f8cd4a2479ad54a1fd3e022bae92da336fe1edb",
+   "new_control_sha256": "5131d608766015d6bb5f444419d1fefb9163a2b9e53ba0ce6d646155da25c9b3",
+   "previous_reproduced_at_test_tolerance": true,
+   "atmosphere_reconverged": false,
+   "significant_pixels": 2442,
+   "maximum_relative_change": 1.2520391171166878e-05,
+   "maximum_change_wavelength_angstrom": 933.9245693410077,
+   "pixels_changed_over_0p1_percent": 0,
+   "integrated_relative_change": {
+    "1150-3000": 3.648858303307694e-07,
+    "3000-5063": 3.390869416015167e-07,
+    "5063-7000": 2.0590760243111836e-07,
+    "7000-300000": 2.3202205791331124e-07
+   },
+   "log_flux_jump_across_5063_angstrom": {
+    "previous": 0.006551702219154562,
+    "new": 0.006551708809503287
+   }
+  },
+  "sdb-hd4539": {
+   "previous_state_sha256": "133de220ef29ec4e24a3a2932de767c2a149a6cef9dc9c3e9f33f10157218cf6",
+   "new_state_sha256": "19578352f8d69c6d273369b2de6cd6b4b4c2b235a0bb5d1b0df82e67e0007b10",
+   "flux_reference_sha256_retained": "db9a1cc5ce4001d83c06ba2d2641c97a15a15545117542223bc9787d4afc62c4",
+   "previous_lte_populations_reproduced_at_test_tolerance": true,
+   "maximum_lte_population_relative_change": 3.0972442388588206e-09,
+   "departure_coefficients_retained": true,
+   "maximum_emergent_flux_relative_change": 4.6104231543608876e-10,
+   "flux_reference_retained_byte_for_byte": true
+  }
+ }
+}

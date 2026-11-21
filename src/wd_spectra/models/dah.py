@@ -99,18 +99,18 @@ class DAHConfig:
     include_rwa_photoionization: bool = True
     include_magnetic_eos: bool = True
     include_centered_motion: bool = True
-    # Finite proton mass in the H2db Balmer component positions (opt-in).
-    include_finite_nuclear_mass: bool = False
-    balmer_line_broadening: Literal["zero_field_stark", "motional"] = "zero_field_stark"
-    motional_scale: float = 1.0
-    # The n=2 -> 2 components (2s0 -> 2p+1, 2p-1 -> 2s0, 2p0 -> 2s0; opt-in).
-    include_intrashell_lines: bool = False
     mixing_length_alpha: float | None = None
     # Opt-in; takes precedence over disk_field_bins.
     disk_component_drift_angstrom: float | None = None
     # Polarimetric output uses signed, uncompressed surface geometry.
     return_stokes: bool = False
     sky_position_angle_deg: float = 0.0
+    # Finite proton mass in the H2db Balmer component positions (opt-in).
+    include_finite_nuclear_mass: bool = False
+    # The n=2 -> 2 components (2s0 -> 2p+1, 2p-1 -> 2s0, 2p0 -> 2s0; opt-in).
+    include_intrashell_lines: bool = False
+    balmer_line_broadening: Literal["zero_field_stark", "motional"] = "zero_field_stark"
+    motional_scale: float = 1.0
 
 
 def _validate_stokes_config(config: DAHConfig, *, custom_surface_cells: bool = False) -> None:
@@ -242,7 +242,11 @@ def _drift_resolved_dipole_cells(
         return field_binned_surface_cells(raw, edges, n_limb_bins=DRIFT_RESOLVED_LIMB_BINS)
     edges = drift_resolved_field_edges(
         sampled,
-        lambda grid: balmer_component_drift_rate(grid, wavelength_range_angstrom, transitions),
+        lambda grid: balmer_component_drift_rate(
+            grid, wavelength_range_angstrom, transitions,
+            finite_nuclear_mass=config.include_finite_nuclear_mass,
+            intrashell_lines=config.include_intrashell_lines,
+        ),
         float(config.disk_component_drift_angstrom),  # type: ignore[arg-type]
     )
     return field_binned_surface_cells(raw, edges, n_limb_bins=DRIFT_RESOLVED_LIMB_BINS)

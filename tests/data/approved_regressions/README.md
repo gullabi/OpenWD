@@ -72,7 +72,32 @@ so they are retained byte for byte. The `dz-pg1225` cold canary passes with
 the new defaults against its existing reference.
 [Provenance](heh_kirchhoff_2026_11_18.json) records the hashes and band changes.
 
-`stark_area_2026_11_11/cold/`, `cool_h_chemistry_2026_11_10/cold/`,
+On 2026-11-19 two shared defaults changed. The homogeneous atomic and
+molecular H/He EOS include HeH+ (as the DZ trace-hydrogen closure already
+did), and He- free-free below John's (1994) 0.5063-micron edge is John's edge
+value times the Carbon et al. (1969)/John (1968) wavelength shape
+(`john1968-shape`). The previous `automatic` choice switched to the Carbon fit
+itself at the edge, which is 3-24% higher there, and left a flux step at
+5063 A in cool helium-rich models (0.71% in `dab-9000`). DZ and DQ select
+`partial-wave` explicitly and are unchanged. That re-approved `dab-9000` (at
+most +0.51%, at 5062 A; integrated +0.4% below 5063 A and -0.1 to -0.2%
+above) and `dab-20000` (at most 1e-5, from HeH+).
+`research/capture_heh_mixed_heminus_controls.py` wrote them after showing
+that the previous defaults reproduce the previous controls. Every other
+fixed-spectrum control stays within tolerance and is retained byte for byte.
+On the frozen `dab-9000` structure the new spectrum is within 0.2-1.6% of the
+Montreal 9000 K, log g 8, log N(H)/N(He) = -2 model from 2000 A to 1 micron,
+with no step at 5063 A. [Provenance](heh_mixed_heminus_2026_11_19.json).
+
+For the 10,000 K pure-helium DB cold start, the new He⁻ opacity moves the
+hydrostatic pressure and column mass by up to 0.845%. Recomputing the
+hydrostatic seed with each prescription reproduces its respective CI grid.
+The new comparison file takes those two arrays from the certified cold start
+and retains the previous wavelength and flux arrays. The maximum spectral
+change on the stellar energy scale is 0.111%, within the existing 0.3% limit.
+[Cold-start provenance](heh_mixed_heminus_2026_11_19/cold/manifest.json).
+
+`heh_mixed_heminus_2026_11_19/cold/`, `stark_area_2026_11_11/cold/`, `cool_h_chemistry_2026_11_10/cold/`,
 `montreal_h_radius_2026_10_27/cold/` and `cold/` (newest first) supply comparison outputs for
 the protected cold-start canaries. Those tests always calculate a fresh
 atmosphere before reading them and still require every independent equilibrium

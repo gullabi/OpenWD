@@ -43,6 +43,18 @@ _RYDBERG_ENERGY_ERG = HYDROGEN_IONIZATION_ENERGY
 ELECTRON_PROTON_MASS_RATIO = 1.0 / 1_836.152_673_43
 
 
+def _finite_mass_balmer_terms(
+    field_megagauss: float | FloatArray,
+) -> tuple[float | FloatArray, float | FloatArray]:
+    """Return the H2db lookup field and proton cyclotron energy in reduced Rydbergs."""
+    mass_ratio = ELECTRON_PROTON_MASS_RATIO
+    beta = field_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
+    return (
+        field_megagauss * (1.0 + mass_ratio) ** 2,
+        4.0 * beta * mass_ratio * (1.0 + mass_ratio),
+    )
+
+
 @dataclass(frozen=True)
 class H2dbEnergyTrack:
     """One spin-down, non-positive-``m`` stationary H2db state."""
@@ -890,14 +902,10 @@ class H2dbTransitionDatabase:
         delta_m = np.asarray([t.delta_m for t in transitions], dtype=np.int64)
         line_energy = energy
         if finite_nuclear_mass:
-            # As in balmer_components: read at beta/mu^2, subtract
-            # Delta m hbar omega_cp, both in units of the reduced-mass Rydberg.
-            mass_ratio = ELECTRON_PROTON_MASS_RATIO
-            beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
-            line_energy = np.asarray([
-                t.values_at_field(field_strength_megagauss * (1.0 + mass_ratio) ** 2)[0]
-                for t in transitions
-            ]) - 4.0 * beta * mass_ratio * (1.0 + mass_ratio) * delta_m
+            # As in balmer_components (see _finite_mass_balmer_terms).
+            table_field, proton_cyclotron = _finite_mass_balmer_terms(field_strength_megagauss)
+            line_energy = np.asarray([t.values_at_field(table_field)[0] for t in transitions]) \
+                - proton_cyclotron * delta_m
         wavelength = 1.0e8 * PLANCK * LIGHT_SPEED / (line_energy * _RYDBERG_ENERGY_ERG)
 
         lower = self._lower_state_energies(field_strength_megagauss)
@@ -968,10 +976,10 @@ class H2dbTransitionDatabase:
         # Finite nuclear mass (see docstring): read the infinite-mass tracks
         # at beta/mu^2 and subtract Delta m hbar omega_cp; both terms are
         # divided by mu because the rest wavelength is the reduced-mass one.
-        mass_ratio = ELECTRON_PROTON_MASS_RATIO if finite_nuclear_mass else 0.0
-        table_field = field_strength_megagauss * (1.0 + mass_ratio) ** 2
-        beta = field_strength_megagauss / H2DB_REFERENCE_FIELD_MEGAGAUSS
-        proton_cyclotron = 4.0 * beta * mass_ratio * (1.0 + mass_ratio)
+        table_field, proton_cyclotron = (
+            _finite_mass_balmer_terms(field_strength_megagauss)
+            if finite_nuclear_mass else (field_strength_megagauss, 0.0)
+        )
         if field_strength_megagauss < minimum_field:
             # Delta E/Ry = 2 beta delta_m, with exact field-free Balmer
             # energy; use the caller's reduced-mass wavelength convention.

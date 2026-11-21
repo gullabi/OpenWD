@@ -42,7 +42,10 @@ COOL_H_CHEMISTRY_COLD = (
 STARK_AREA_COLD = (
     Path(__file__).parent / "data/approved_regressions/stark_area_2026_11_11/cold"
 )
-REVIEWED_COLD = (STARK_AREA_COLD, COOL_H_CHEMISTRY_COLD, MONTREAL_H_RADIUS_COLD)
+HELIUM_MINUS_COLD = (
+    Path(__file__).parent / "data/approved_regressions/heh_mixed_heminus_2026_11_19/cold"
+)
+REVIEWED_COLD = (HELIUM_MINUS_COLD, STARK_AREA_COLD, COOL_H_CHEMISTRY_COLD, MONTREAL_H_RADIUS_COLD)
 _FORMAL_WAVELENGTH = np.unique(
     np.r_[np.geomspace(900.0, 300000.0, 1100), np.arange(3700.0, 7000.0, 2.0)]
 )
@@ -60,8 +63,7 @@ def _assert_solver_control(result, case, step_tolerance, caught):
     ]
     assert history and history[-1]["maximum_step"] < step_tolerance
     reference = Path(__file__).parent / "data/approved_regressions/cold" / (case + ".npz")
-    # Reviewed 2026-10-27 hydrogen neutral defaults: fresh certified cold starts
-    # replace only the references they moved; see that directory's manifest.
+    # Prefer the newest reviewed cold control available for this case.
     reviewed = [folder / (case + ".npz") for folder in REVIEWED_COLD]
     reviewed = [path for path in reviewed if path.exists()]
     with np.load(reviewed[0] if reviewed else reference) as old:

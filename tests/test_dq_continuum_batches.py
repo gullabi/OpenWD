@@ -11,7 +11,8 @@ from wd_spectra._dq.continuum_batches import helium_continuum_absorption, CONTIN
 
 
 @pytest.mark.parametrize('dense', [False, True])
-def test_continuum_batches_are_bit_identical(tmp_path, monkeypatch, dense):
+@pytest.mark.parametrize('prescription', ['partial-wave', 'automatic'])
+def test_continuum_batches_are_bit_identical(tmp_path, monkeypatch, dense, prescription):
     fixture = Path(__file__).parent/'data/dq_regressions/j1235-fixed.npz'
     mat = make_material(DQConfig(9347., 8.041, -4.107), ModelData.default(), tmp_path)
     with np.load(fixture) as z:
@@ -24,13 +25,14 @@ def test_continuum_batches_are_bit_identical(tmp_path, monkeypatch, dense):
                   a.helium_lte_state.neutral_he_density) if dense else None)
     original = base.helium_continuum_mass_absorption_coefficient
     expected = original(a, wave, include_electron_scattering=False,
-        include_rayleigh_scattering=False, helium_minus_correction=correction)
+        include_rayleigh_scattering=False, helium_minus_correction=correction,
+        helium_minus_prescription=prescription)
     sizes = []
     def observe(state, wavelengths, **kwargs):
         sizes.append(len(wavelengths))
         return original(state, wavelengths, **kwargs)
     monkeypatch.setattr(base, 'helium_continuum_mass_absorption_coefficient', observe)
-    actual = helium_continuum_absorption(a, wave, correction)
+    actual = helium_continuum_absorption(a, wave, correction, prescription=prescription)
     np.testing.assert_array_equal(actual, expected)
     assert sizes == [CONTINUUM_BATCH_SIZE, CONTINUUM_BATCH_SIZE, 19]
     with pytest.raises(ValueError, match='wavelength-by-depth'):
