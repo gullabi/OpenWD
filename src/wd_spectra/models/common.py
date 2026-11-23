@@ -276,6 +276,12 @@ class ModelData:
         return self.cache / "h2db/h2db_balmer_subset.npz"
 
     @property
+    def motional_stark_table(self) -> Path:
+        """Delta alpha of the H-alpha components (tools/build_motional_stark_table.py)."""
+
+        return self.cache / "motional-stark/halpha_motional_stark.npz"
+
+    @property
     def h2_h2_cia(self) -> Path:
         return (
             self.cache
