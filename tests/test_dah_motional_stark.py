@@ -5,11 +5,14 @@ import pytest
 
 from wd_spectra._compat import trapezoid
 from wd_spectra.atmosphere import gray_hydrogen_atmosphere
-from wd_spectra.constants import LIGHT_SPEED
+from wd_spectra.constants import BOLTZMANN, HYDROGEN_MASS, LIGHT_SPEED
 from wd_spectra.magnetic import (
-    _kurucz_griem_templates, h2db_balmer_manifolds, motional_stark_profile, motional_stark_shift_hz,
+    _kurucz_griem_templates, _motional_stark_template, _translated_profile,
+    h2db_balmer_manifolds, motional_stark_profile, motional_stark_shift_hz,
 )
-from wd_spectra.magnetic_atomic import read_h2db_transition_database, read_motional_stark_table
+from wd_spectra.magnetic_atomic import (
+    MotionalStarkTable, read_h2db_transition_database, read_motional_stark_table,
+)
 from wd_spectra.models.common import ModelData
 from wd_spectra.opacity import BALMER_LINES
 
@@ -54,6 +57,64 @@ def test_stationary_pi_component_shift():
     assert 5829.7**2 * shift / LIGHT_SPEED * 1e-8 == pytest.approx(7.0, abs=.05)
 
 
+def test_motional_lookup_keeps_finite_knots_beside_flagged_nodes():
+    label = (0, 1, 2, 0, -1, 2)
+    table = MotionalStarkTable(
+        np.array([100., 105., 110., 115.]), {label: np.array([4., np.nan, 8., 10.])},
+    )
+    assert table.delta_alpha_at(label, 100.) == 4.
+    assert np.isnan(table.delta_alpha_at(label, 102.5))
+    assert np.isnan(table.delta_alpha_at(label, 105.))
+    assert table.delta_alpha_at(label, 112.5) == 9.
+    assert table.delta_alpha_at(label, 115.) == 10.
+
+
+def test_motional_table_keeps_weak_h2db_cell_on_analytic_triplet():
+    db, table = _data()
+    atmosphere = gray_hydrogen_atmosphere(18_000., 8., n_depth=4)
+    wave = np.linspace(6560., 6568., 65)
+    templates = _kurucz_griem_templates(atmosphere, 3, True)
+    # A positive field below the table floor can occur in a strong-field map.
+    baseline = h2db_balmer_manifolds(
+        atmosphere, wave, .01, db, templates=templates, maximum_upper_level=3, dispersion=True,
+    )
+    motional = h2db_balmer_manifolds(
+        atmosphere, wave, .01, db, templates=templates, maximum_upper_level=3, dispersion=True,
+        motional_stark_table=table,
+    )
+    for plain, actual in zip(baseline, motional):
+        for q in ("minus", "pi", "plus"):
+            np.testing.assert_array_equal(getattr(actual, q), getattr(plain, q))
+
+
+@pytest.mark.parametrize("scale", [1., 2.])
+def test_broad_red_motional_component_survives_in_physical_frequency(scale):
+    db, table = _data()
+    atmosphere = gray_hydrogen_atmosphere(18_000., 8., n_depth=12)
+    field = 450.
+    components = db.balmer_components(3, BALMER_LINES[0].wavelength_vacuum_angstrom,
+                                     field, atmosphere.temperature)
+    label = (0, 1, 2, -1, 1, 2)
+    i = next(i for i, row in enumerate(components.labels) if tuple(row) == label)
+    center = LIGHT_SPEED / (components.wavelength_angstrom[i] * 1e-8)
+    shift = scale * motional_stark_shift_hz(table.delta_alpha_at(label, field),
+                                           field, atmosphere.temperature)
+    template = _kurucz_griem_templates(atmosphere, 3, False)[3]
+    kernel = _motional_stark_template(template, center, shift, atmosphere.temperature, True)
+    assert np.all(np.isfinite(kernel.wavelength_angstrom))
+    assert kernel.wavelength_angstrom[0] > 0.
+    assert np.all(np.diff(kernel.wavelength_angstrom) > 0.)
+    assert np.all(np.isfinite(kernel.dispersion))
+    sigma = center * np.sqrt(BOLTZMANN * atmosphere.temperature / HYDROGEN_MASS) / LIGHT_SPEED
+    frequency = np.unique(np.concatenate((
+        center * np.geomspace(1.e-6, 4., 16_001),
+        center + np.linspace(-12. * sigma.max(), 12. * sigma.max(), 3001),
+    )))
+    sample = _translated_profile(kernel, LIGHT_SPEED / frequency[::-1] / 1.e-8, 0.)[::-1]
+    assert np.all(sample[np.searchsorted(frequency, center)] > 0.)
+    np.testing.assert_allclose(trapezoid(sample, frequency, axis=0), template.strength, rtol=1.e-3)
+
+
 @pytest.mark.parametrize("scale", [1., 0.])
 def test_motional_kernel_conserves_line_strength(scale):
     db, table = _data()
@@ -75,7 +136,7 @@ def test_motional_kernel_conserves_line_strength(scale):
 def test_motional_dispersion_is_the_hilbert_partner_of_its_absorption():
     # On a disk the V/I of narrow lines comes from their dispersion wing, so the
     # kernel's partner must hold far from the line, not only in its core.
-    from wd_spectra.magnetic import _motional_stark_template, _translated_profile, frequency_hilbert_dispersion
+    from wd_spectra.magnetic import frequency_hilbert_dispersion
 
     _, table = _data()
     atm = gray_hydrogen_atmosphere(18000., 8., n_depth=4)
@@ -84,7 +145,7 @@ def test_motional_dispersion_is_the_hilbert_partner_of_its_absorption():
     # sigma- 2s0-3d-1 and pi 2s0-3p0 at 280 MG; the sign flip checks a blue (Delta alpha < 0) wing.
     for label, sign in (((0, 1, 2, -1, 1, 2), 1.), ((0, 1, 2, 0, -1, 2), -1.)):
         shift = sign * motional_stark_shift_hz(table.delta_alpha_at(label, 280.), 280., atm.temperature)
-        kernel = _motional_stark_template(template, rest, rest, shift, atm.temperature, True)
+        kernel = _motional_stark_template(template, rest, shift, atm.temperature, True)
         wave = np.unique(np.concatenate((kernel.wavelength_angstrom, np.geomspace(3000., 12000., 2000))))
         numeric = frequency_hilbert_dispersion(wave, _translated_profile(kernel, wave, 0.))
         phase = _translated_profile(kernel, wave, 0., kernel.dispersion)

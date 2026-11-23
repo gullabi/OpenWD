@@ -1331,13 +1331,16 @@ class MotionalStarkTable:
     delta_alpha: dict[tuple[int, ...], FloatArray]
 
     def delta_alpha_at(self, labels: ArrayLike, field_strength_megagauss: float) -> float:
-        """Linear interpolation in B; NaN outside the table or next to a NaN node."""
+        """Return tabulated nodes or interpolate between two valid neighbours."""
 
         values = self.delta_alpha.get(tuple(int(x) for x in labels))
         grid = self.field_megagauss
         if values is None or not grid[0] <= field_strength_megagauss <= grid[-1]:
             return math.nan
-        index = min(int(np.searchsorted(grid, field_strength_megagauss, side="right")) - 1, grid.size - 2)
+        upper = int(np.searchsorted(grid, field_strength_megagauss))
+        if grid[upper] == field_strength_megagauss:
+            return float(values[upper])
+        index = upper - 1
         weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
         return float((1.0 - weight) * values[index] + weight * values[index + 1])
 

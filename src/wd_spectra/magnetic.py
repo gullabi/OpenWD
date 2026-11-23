@@ -360,29 +360,46 @@ def motional_stark_profile(
 
 def _motional_stark_template(
     template: BalmerLineTemplate,
-    rest_frequency: float,
     component_frequency: float,
     shift_hz: FloatArray,
     temperature: FloatArray,
     dispersion: bool,
 ) -> BalmerLineTemplate:
-    """The motional kernel of one component as a template about ``rest_frequency``."""
+    """Sample a component's motional kernel in its physical frequency frame."""
+
+    from ._compat import trapezoid
 
     if template.strength is None:
         raise ValueError("the motional kernel needs a template with its line strength")
     sigma = component_frequency * np.sqrt(BOLTZMANN * temperature / HYDROGEN_MASS) / LIGHT_SPEED
     wide = 8.0 * sigma.max()
-    tail = np.geomspace(sigma.min(), wide + 20.0 * np.abs(shift_hz).max(), 300)
-    side = -1.0 if shift_hz[0] < 0.0 else 1.0  # s has the sign of Delta alpha at every depth
-    # Empty nodes out to 900 and 25000 A (as the zero-field templates) carry the
-    # dispersion (Faraday) wing, which falls off only as 1/detuning.
-    blue, red = LIGHT_SPEED / 9.0e-6 - rest_frequency, rest_frequency - LIGHT_SPEED / 2.5e-4
+    tail_extent = wide + 20.0 * np.abs(shift_hz).max()
+    if not np.isfinite(tail_extent):
+        raise ValueError("motional Stark width must be finite")
+    # Cover at least 900--25000 A for dispersion. Extend on the broadened side
+    # as needed while keeping every red-tail node at a positive photon frequency.
+    blue = max(wide, LIGHT_SPEED / 9.0e-6 - component_frequency)
+    red = max(wide, component_frequency - LIGHT_SPEED / 2.5e-4)
+    side = -1.0 if shift_hz[0] < 0.0 else 1.0
+    if side < 0.0:
+        blue = max(blue, tail_extent)
+    else:
+        tail_extent = min(tail_extent, np.nextafter(component_frequency, 0.0))
+        red = max(red, tail_extent)
+    tail = np.geomspace(sigma.min(), tail_extent, 300)
     detuning = np.unique(np.concatenate((
         np.arange(-wide, wide, sigma.min() / 4.0), side * tail,
         -np.geomspace(wide, blue, 150), np.geomspace(wide, red, 150))))
-    mesh = LIGHT_SPEED / (rest_frequency - detuning) / 1.0e-8
-    opacity = template.strength[np.newaxis, :] * motional_stark_profile(
+    mesh, distinct = np.unique(
+        LIGHT_SPEED / (component_frequency - detuning) / 1.0e-8, return_index=True
+    )
+    detuning = detuning[distinct]
+    profile = motional_stark_profile(
         detuning[:, np.newaxis], sigma[np.newaxis, :], shift_hz[np.newaxis, :])
+    # Keep the component's oscillator strength when the mathematical red tail
+    # would extend past zero photon frequency.
+    area = trapezoid(profile, detuning, axis=0)
+    opacity = profile * (template.strength / area)[np.newaxis, :]
     return BalmerLineTemplate(
         mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if dispersion else None)
 
@@ -521,13 +538,14 @@ def h2db_balmer_manifolds(
                 )
             )[np.newaxis, :]
             kernel = template
-            if motional_stark_table is not None:
+            if motional_stark_table is not None and components.labels is not None:
                 delta_alpha = motional_stark_table.delta_alpha_at(components.labels[index], field)
                 if np.isfinite(delta_alpha):
                     kernel = _motional_stark_template(
-                        template, rest_frequency, component_frequency,
+                        template, component_frequency,
                         motional_scale * motional_stark_shift_hz(delta_alpha, field, atmosphere.temperature),
                         atmosphere.temperature, dispersion)
+                    shift = 0.0
             q = int(np.sign(delta_m))
             manifolds[q] += weight * _translated_profile(kernel, wavelength, shift)
             if dispersion:

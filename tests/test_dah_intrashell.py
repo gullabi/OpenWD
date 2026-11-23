@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from wd_spectra import DAHConfig
+from wd_spectra._compat import trapezoid
 from wd_spectra.atmosphere import gray_hydrogen_atmosphere
 from wd_spectra.constants import ELECTRON_MASS, ELEMENTARY_CHARGE_ESU, LIGHT_SPEED, PI, PLANCK, BOLTZMANN
 from wd_spectra.magnetic import (
@@ -110,7 +111,7 @@ def test_opacity_integrates_to_the_oscillator_strength_and_lower_population(atmo
     wavelength = np.linspace(center - 3.0, center + 3.0, 6001)
     opacity, phase = h2db_intrashell_manifolds(atmosphere, wavelength, field, database, dispersion=True)
     frequency = LIGHT_SPEED / (wavelength * 1.0e-8)
-    integral = -np.trapezoid(opacity.plus, frequency, axis=0)
+    integral = -trapezoid(opacity.plus, frequency, axis=0)
     n2 = _atmosphere_level_distribution(atmosphere, 2).population_density[:, 1]
     nu = LIGHT_SPEED / (center * 1.0e-8)
     expected = (3.0 * PI * ELEMENTARY_CHARGE_ESU**2 / (ELECTRON_MASS * LIGHT_SPEED)
