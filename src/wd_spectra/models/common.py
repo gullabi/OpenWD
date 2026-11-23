@@ -276,6 +276,12 @@ class ModelData:
         return self.cache / "h2db/h2db_balmer_subset.npz"
 
     @property
+    def h2db_paschen_brackett_subset(self) -> Path:
+        """H2db transitions with lower level n=3, 4 (tools/build_h2db_subset.py --paschen-brackett)."""
+
+        return self.cache / "h2db/h2db_paschen_brackett_subset.npz"
+
+    @property
     def motional_stark_table(self) -> Path:
         """Delta alpha of the H-alpha components (tools/build_motional_stark_table.py)."""
 

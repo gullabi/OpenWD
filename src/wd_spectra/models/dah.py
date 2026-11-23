@@ -20,6 +20,7 @@ from ..magnetic import (
     field_binned_surface_cells,
     MagneticPhysics,
     SurfaceCells,
+    _paschen_brackett_lookup_field,
     _validate_surface_cells,
     default_magnetic_da_wavelength_grid,
     dipole_surface_cells,
@@ -29,6 +30,7 @@ from ..magnetic import (
 from ..magnetic_atomic import (
     H2dbTransitionDatabase,
     read_h2db_energy_database,
+    read_h2db_paschen_brackett_transitions,
     read_h2db_transition_database,
     read_motional_stark_table,
 )
@@ -111,6 +113,8 @@ class DAHConfig:
     include_intrashell_lines: bool = False
     balmer_line_broadening: Literal["zero_field_stark", "motional"] = "zero_field_stark"
     motional_scale: float = 1.0
+    # The n=3, 4 H2db components of the Paschen and Brackett lines (opt-in).
+    include_paschen_brackett_lines: bool = False
 
 
 def _validate_stokes_config(config: DAHConfig, *, custom_surface_cells: bool = False) -> None:
@@ -137,6 +141,7 @@ DAH_PAPER_PRESCRIPTION: Mapping[str, object] = MappingProxyType({
     "include_centered_motion": False,
     "include_finite_nuclear_mass": False,
     "include_intrashell_lines": False,
+    "include_paschen_brackett_lines": False,
 })
 
 
@@ -233,6 +238,11 @@ def _drift_resolved_dipole_cells(
         data = ModelData.default()
         data.require(data.h2db_balmer_subset)
         transitions = read_h2db_transition_database(data.h2db_balmer_subset)
+    paschen_brackett = None
+    if transitions is not None and config.include_paschen_brackett_lines:
+        data = ModelData.default()
+        data.require(data.h2db_paschen_brackett_subset)
+        paschen_brackett = read_h2db_paschen_brackett_transitions(data.h2db_paschen_brackett_subset)
     sampled = (
         float(np.min(raw.field_strength_megagauss)),
         float(np.max(raw.field_strength_megagauss)),
@@ -246,6 +256,7 @@ def _drift_resolved_dipole_cells(
             grid, wavelength_range_angstrom, transitions,
             finite_nuclear_mass=config.include_finite_nuclear_mass,
             intrashell_lines=config.include_intrashell_lines,
+            paschen_brackett_transitions=paschen_brackett,
         ),
         float(config.disk_component_drift_angstrom),  # type: ignore[arg-type]
     )
@@ -395,7 +406,8 @@ def _structure_request_config(config: DAHConfig, *, custom_surface_cells: bool) 
     # structure serves every setting of these options.
     options = dict(polarized_transfer="scalar-stokes-i", return_stokes=False, sky_position_angle_deg=0.,
                    include_finite_nuclear_mass=False, include_intrashell_lines=False,
-                   balmer_line_broadening="zero_field_stark", motional_scale=1.0)
+                   balmer_line_broadening="zero_field_stark", motional_scale=1.0,
+                   include_paschen_brackett_lines=False)
     if custom_surface_cells:
         # A supplied map replaces the built-in geometry controls. The actual
         # field distribution/weights/bounds are identified separately below.
@@ -486,6 +498,12 @@ def compute_dah(
         data.require(data.h2db_balmer_subset)
         transitions = read_h2db_transition_database(data.h2db_balmer_subset)
         energies = read_h2db_energy_database(data.h2db_balmer_subset)
+    paschen_brackett = None
+    if strong and config.include_paschen_brackett_lines:
+        data.require(data.h2db_paschen_brackett_subset)
+        paschen_brackett = read_h2db_paschen_brackett_transitions(data.h2db_paschen_brackett_subset)
+        lookup_bound = maximum_field if cells.field_bounds_exact else float(np.max(cells.field_strength_megagauss))
+        _paschen_brackett_lookup_field(lookup_bound, paschen_brackett, config.include_finite_nuclear_mass)
     motional = None
     if strong and config.balmer_line_broadening == "motional":
         data.require(data.motional_stark_table)
@@ -520,6 +538,7 @@ def compute_dah(
         motional_stark_table=motional,
         motional_scale=config.motional_scale,
         include_intrashell_lines=config.include_intrashell_lines,
+        paschen_brackett_transitions=paschen_brackett,
         line_regime="h2db" if strong else "linear-zeeman",
     )
     if not relax_atmosphere and initial_atmosphere is None:
