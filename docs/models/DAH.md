@@ -153,7 +153,7 @@ the equilibrium checks and absolute-flux agreement.
 | `include_intrashell_lines` | `False` | The n=2 → 2 components 2p−1 → 2s0 and 2s0 → 2p+1 (σ, q = +1) and 2p0 → 2s0 (π), which exist only in a field and have no zero-field line: absolute opacity from the H2db oscillator strength f = E d/3 (about 0.18–0.20 at 300–400 MG) and the LTE share of the n=2 shell in the lower substate, thermal Doppler profile. The σ pair lies in 3400–8000 Å at about 255–660 MG (both lines at 285–610 MG; 5182 and 5546 Å at 400 MG). With Doppler profiles the absorption of each line is about an ångström wide at one field value and nearly averages out on a disk (and needs field bins far finer than the defaults; `disk_component_drift_angstrom` counts these lines when the option is on). Its magneto-optical (Faraday) wing does not: in full Stokes it shifts the continuum V/I by up to ~0.02 over hundreds of ångströms (a 450 MG dipole at 16 kK), so switching this on changes the continuum polarization, not only adds narrow lines. The motional Stark width is not included. Synthesis only, as the structure uses no magnetic lines. |
 | `balmer_line_broadening` | `"zero_field_stark"` | `"motional"`: above 1 MG each Hα component in the motional Stark table takes a one-sided exponential (mean shift s = Δα kT β²/M) convolved with the thermal Doppler profile in place of the zero-field Stark kernel (Pavlov & Mészáros 1993, Eqs. 3.27–3.31; Rosato 2023, Eq. 3). Components the table flags, and all higher Balmer lines, keep the zero-field kernel. |
 | `motional_scale` | `1.0` | Factor on the motional shift s; `0` leaves the Doppler profile alone. Used only with `"motional"`. |
-| `include_paschen_brackett_lines` | `False` | The H2db components of the Paschen and Brackett lines (lower level n=3, 4, upper n′ > n), which the field moves into 3400–8000 Å (at 150–320 MG mostly the q = +1 components). Each zero-field line (Tremblay–Bergeron Stark–Doppler opacity) is shared among its components with their Δm-resolved oscillator strengths E d from H2db and the LTE share of the lower substate among the n² substates of its shell, scaled by the local shell population as the Balmer lines are; unlike the Balmer route, lines are not renormalized to their zero-field strength. Reads `h2db_paschen_brackett_subset.npz` (β ≤ 0.25, B ≤ 1175 MG; transitions whose f reaches 10⁻³ inside 3400–8000 Å); a larger field raises. Widths are the zero-field Stark–Doppler profiles of the parent lines (no motional Stark broadening); same-shell n → n lines are not included. Synthesis only. |
+| `include_paschen_brackett_lines` | `False` | The H2db components of the Paschen and Brackett lines (lower level n=3, 4, upper n′ > n), which the field moves into 3400–8000 Å (at 150–320 MG mostly the q = +1 components). Each zero-field line (Tremblay–Bergeron Stark–Doppler opacity) is shared among its components with their Δm-resolved oscillator strengths E d from H2db and the LTE share of the lower substate among the n² substates of its shell, scaled by the local shell population as the Balmer lines are; unlike the Balmer route, lines are not renormalized to their zero-field strength. Reads `h2db_paschen_brackett_subset.npz` (β ≤ 0.25; transitions whose f reaches 10⁻³ inside 3400–8000 Å). The common table limit is about 1175 MG, or 1174 MG with `include_finite_nuclear_mass=True` because the position correction increases the lookup field. Widths are the zero-field Stark–Doppler profiles of the parent lines (no motional Stark broadening); same-shell n → n lines are not included. Synthesis only. |
 
 `paper_dah_config(**parameters)` returns a `DAHConfig` with the zero-field
 EOS and H I bound–free opacity at all fields (`include_rwa_photoionization`,
@@ -211,9 +211,10 @@ from `DAHConfig`.
 - The RWA bound–free opacity is tested against quantum cross sections only
   up to about 200 MG. Above 200 MG of visible field, the continuum is
   uncertain; the metadata records a `domain_notes` entry.
-- The atmosphere structure is nonmagnetic. Magnetic Lyman, Paschen and
-  Brackett lines, H13 and higher above 1 MG, and strong-field molecules are
-  absent.
+- The atmosphere structure is nonmagnetic. The synthesis omits magnetic Lyman
+  lines, H13 and higher above 1 MG, and strong-field molecules. The opt-in
+  Paschen and Brackett synthesis covers only the window-selected components
+  and uses zero-field line widths.
 - The accepted range (5000–40,000 K, log g 7–9.5) is wider than the tested
   sample.
 

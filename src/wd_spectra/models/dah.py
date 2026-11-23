@@ -20,6 +20,7 @@ from ..magnetic import (
     field_binned_surface_cells,
     MagneticPhysics,
     SurfaceCells,
+    _paschen_brackett_lookup_field,
     _validate_surface_cells,
     default_magnetic_da_wavelength_grid,
     dipole_surface_cells,
@@ -501,6 +502,8 @@ def compute_dah(
     if strong and config.include_paschen_brackett_lines:
         data.require(data.h2db_paschen_brackett_subset)
         paschen_brackett = read_h2db_paschen_brackett_transitions(data.h2db_paschen_brackett_subset)
+        lookup_bound = maximum_field if cells.field_bounds_exact else float(np.max(cells.field_strength_megagauss))
+        _paschen_brackett_lookup_field(lookup_bound, paschen_brackett, config.include_finite_nuclear_mass)
     motional = None
     if strong and config.balmer_line_broadening == "motional":
         data.require(data.motional_stark_table)

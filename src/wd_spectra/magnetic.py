@@ -292,8 +292,10 @@ def _translated_profile(
     wavelength: FloatArray,
     frequency_shift_hz: float,
     values: FloatArray | None = None,
+    *,
+    dispersion_center_hz: float | None = None,
 ) -> FloatArray:
-    """Sample a template at equal frequency detuning from a shifted center."""
+    """Sample a shifted profile, optionally continuing its dispersion wings."""
 
     values = template.mass_absorption_coefficient if values is None else values
     frequency = LIGHT_SPEED / (wavelength * 1.0e-8) - frequency_shift_hz
@@ -302,13 +304,22 @@ def _translated_profile(
     source = LIGHT_SPEED / frequency[valid] / 1.0e-8
     mesh = template.wavelength_angstrom
     inside = (source >= mesh[0]) & (source <= mesh[-1])
-    if not np.any(inside):
-        return result
-    target = np.flatnonzero(valid)[inside]
-    position = source[inside]
-    index = np.clip(np.searchsorted(mesh, position) - 1, 0, mesh.size - 2)
-    weight = ((position - mesh[index]) / (mesh[index + 1] - mesh[index]))[:, np.newaxis]
-    result[target] = (1.0 - weight) * values[index] + weight * values[index + 1]
+    valid_nodes = np.flatnonzero(valid)
+    if np.any(inside):
+        position = source[inside]
+        index = np.clip(np.searchsorted(mesh, position) - 1, 0, mesh.size - 2)
+        weight = ((position - mesh[index]) / (mesh[index + 1] - mesh[index]))[:, np.newaxis]
+        result[valid_nodes[inside]] = (1.0 - weight) * values[index] + weight * values[index + 1]
+    if dispersion_center_hz is not None:
+        # Match the sampled value at each endpoint to the inverse-detuning
+        # Faraday wing. It still applies where the translated source frequency
+        # is nonpositive, on the low-frequency side of the shifted component.
+        blue = valid_nodes[source < mesh[0]]
+        red = np.concatenate((valid_nodes[source > mesh[-1]], np.flatnonzero(~valid)))
+        for nodes, edge in ((blue, 0), (red, -1)):
+            edge_detuning = LIGHT_SPEED / (mesh[edge] * 1.0e-8) - dispersion_center_hz
+            detuning = frequency[nodes] - dispersion_center_hz
+            result[nodes] = (edge_detuning / detuning)[:, np.newaxis] * values[edge]
     return result
 
 
@@ -631,8 +642,9 @@ def _paschen_brackett_templates(
 
     Each is OpenWD's Tremblay--Bergeron Stark--Doppler line opacity
     (occupation-probability population of the lower shell, survival of the
-    upper level, stimulated emission at the rest frequency), without the
-    series' edge tapers, on a mesh as the Balmer templates use.
+    upper level, stimulated emission at the rest frequency), on a mesh as
+    the Balmer templates use. The outermost quarter of each wing tapers
+    to zero at the mesh endpoint before computing dispersion.
     """
 
     from .opacity import (
@@ -652,12 +664,38 @@ def _paschen_brackett_templates(
             )))
             opacity = _higher_hydrogen_series_mass_absorption_coefficient(
                 atmosphere, mesh, stark_table=table, lines=(line,),
-                wavelength_limits_angstrom=(mesh[0] - 1.0, mesh[-1] + 1.0),
-                edge_taper_width_angstrom=(1.0e-9, 1.0e-9),
+                wavelength_limits_angstrom=(mesh[0], mesh[-1]),
+                edge_taper_width_angstrom=((center - mesh[0]) / 4.0, (mesh[-1] - center) / 4.0),
             )
             templates[line.lower_level, line.upper_level] = BalmerLineTemplate(
                 mesh, opacity, frequency_hilbert_dispersion(mesh, opacity) if dispersion else None)
     return templates
+
+
+def _paschen_brackett_lookup_field(
+    field: float,
+    transitions: dict[tuple[int, int], tuple[H2dbTransition, ...]],
+    finite_nuclear_mass: bool,
+) -> tuple[float, float]:
+    """Check the common table coverage and return the component lookup terms."""
+
+    from .magnetic_atomic import H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms
+
+    table_field, proton_cyclotron = (
+        _finite_mass_balmer_terms(field) if finite_nuclear_mass else (field, 0.0)
+    )
+    limit = min(track.beta[-1] for group in transitions.values() for track in group)
+    if table_field / H2DB_REFERENCE_FIELD_MEGAGAUSS > limit:
+        maximum_field = limit * H2DB_REFERENCE_FIELD_MEGAGAUSS
+        correction = ""
+        if finite_nuclear_mass:
+            maximum_field /= _finite_mass_balmer_terms(1.0)[0]
+            correction = " with finite-nuclear-mass positions"
+        raise ValueError(
+            f"B={field:g} MG exceeds the H2db Paschen/Brackett field limit "
+            f"of {maximum_field:.3f} MG{correction}"
+        )
+    return table_field, proton_cyclotron
 
 
 def h2db_paschen_brackett_manifolds(
@@ -689,16 +727,15 @@ def h2db_paschen_brackett_manifolds(
     Stark table (Brackett n' > 14) borrow its last line.  The shell
     population follows ``local`` (the field's EOS) as the Balmer lines do.
     Below the table floor the components lie outside 3400--8000 A and are
-    omitted; above beta = 0.25 the subset ends and a field raises.
+    omitted. The lookup field must stay within the common table coverage.
     """
 
-    from .magnetic_atomic import (
-        _RYDBERG_ENERGY_ERG, H2DB_REFERENCE_FIELD_MEGAGAUSS, _finite_mass_balmer_terms,
-    )
+    from .magnetic_atomic import _RYDBERG_ENERGY_ERG, H2DB_REFERENCE_FIELD_MEGAGAUSS
     from .opacity import BRACKETT_LINES, PASCHEN_LINES
 
     wavelength = _validate_grid(wavelength_angstrom)
     field = _validate_field(field_strength_megagauss)
+    table_field, proton_cyclotron = _paschen_brackett_lookup_field(field, transitions, finite_nuclear_mass)
     if templates is None:
         templates = _paschen_brackett_templates(atmosphere, dispersion)
     local = atmosphere if local is None else local
@@ -708,8 +745,6 @@ def h2db_paschen_brackett_manifolds(
     phases = {-1: np.zeros(shape), 0: np.zeros(shape), 1: np.zeros(shape)}
     floor = max(t.beta[0] for group in transitions.values() for t in group)
     if field / H2DB_REFERENCE_FIELD_MEGAGAUSS >= floor:
-        table_field, proton_cyclotron = (
-            _finite_mass_balmer_terms(field) if finite_nuclear_mass else (field, 0.0))
         lines = {(line.lower_level, line.upper_level): line for line in (*PASCHEN_LINES, *BRACKETT_LINES)}
         inverse_kt = _RYDBERG_ENERGY_ERG / (BOLTZMANN * temperature)
         for lower in (3, 4):
@@ -741,7 +776,10 @@ def h2db_paschen_brackett_manifolds(
                     shift = frequency - rest_frequency
                     manifolds[q] += weight * _translated_profile(template, wavelength, shift)
                     if dispersion:
-                        phases[q] += weight * _translated_profile(template, wavelength, shift, template.dispersion)
+                        phases[q] += weight * _translated_profile(
+                            template, wavelength, shift, template.dispersion,
+                            dispersion_center_hz=rest_frequency,
+                        )
     result = PolarizedOpacity(manifolds[-1], manifolds[0], manifolds[1])
     if dispersion:
         return result, PolarizedOpacity(phases[-1], phases[0], phases[1])
