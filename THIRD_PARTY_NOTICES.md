@@ -204,6 +204,17 @@ and are not covered by OpenWD's BSD source-code license:
 Credit the Opacity Project (Cunto et al. 1993) and the TLUSTY and SIROCCO
 distributions.
 
+## Li et al. (2021) C I transition data (warm DQ)
+
+`src/wd_spectra/data/atomic/li2021_c_i_e1.csv.xz` contains the C I E1
+transition data (gf, A and the length-velocity difference dT) of the
+supplementary Table A2 of Li, Amarsi, Papoulia, Ekman & Jönsson (2021, MNRAS
+502, 3780; arXiv:2101.09114), with each state rewritten as the corresponding
+Stout level label. The file header records the SHA-256 of the source table
+and `scripts/build_li2021_c_i_table.py` rebuilds it. These atomic data are not
+covered by OpenWD's BSD source-code license; credit the original authors in
+scientific use.
+
 ## O I excited-core multiplet strengths (D6)
 
 `_O_I_EXCITED_CORE_3D_TRANSITIONS` in `src/wd_spectra/metals.py` contains

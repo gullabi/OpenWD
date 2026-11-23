@@ -111,6 +111,19 @@ Paper range: 10,000–30,000 K. See the [D6 guide](models/D6.md).
 | SDSS J1637+3631: 15680/6.3 | standard | Canary `d6-j1637` |
 | J1235−3752: 18625/7.0 | standard | Cold start |
 
+## Warm DQ
+
+In development. See the [warm DQ guide](models/WarmDQ.md#validation). All
+points use 3000 structure lines.
+
+| Points | Settings | Evidence |
+| --- | --- | --- |
+| C+H: 12603/8.71, 12830/8.80, 12641/8.88, 13574/8.86, 14655/8.91, 15193/9.00, 16338/9.05, 21851/8.84; log C/H 0.95–3.0 | standard, convective | Cold starts; DESI and SDSS comparisons at published parameters |
+| C/He: 14611/8.78 ([C/He] −1.82), 14772/8.87 (+0.30), 16131/8.93 (−0.10), 24483/8.33 (+2.0) | standard, convective | Cold starts; SDSS comparisons at published parameters |
+| 21851/8.84, log C/H 2.39 | standard, radiative | Cold start continued from the convective model |
+| SDSS J0958+5853: 16871/8.99, log C/H = 0.91 | standard, convective | Cold start; SDSS comparison at the published parameters |
+| Pure carbon: 18000/9.0 | standard, 3000 and 25,000 structure lines | Cold starts through `D6Config` |
+
 ## DAH
 
 Paper range: 10,500–29,316 K, dipole polar fields 6.13–437.1 MG. See the

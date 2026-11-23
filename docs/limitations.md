@@ -107,6 +107,9 @@ These approximations apply to all classes unless noted:
 - **[PG 1159](models/PG1159.md).** The outermost temperatures are uncertain.
   Trace elements do not change the structure.
 - **[D6](models/D6.md).** No molecules or negative ions. Tested on few stars.
+- **[Warm DQ](models/WarmDQ.md).** In development. No molecules. The
+  magnetic field enters only the line opacity of the spectrum. Carbon lines
+  are 10–60% stronger than observed at published parameters.
 - **[DAH](models/DAH.md).** Nonmagnetic structure, approximate Stark–Zeeman
   profiles, Stokes I by default, hydrogen only.
 - **[sdB](models/sdB.md).** The LTE structure is likely inaccurate above about

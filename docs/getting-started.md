@@ -127,6 +127,7 @@ Abundance conventions differ between classes:
 | `DAOConfig` | `log_hydrogen_to_helium`: log10 N(H)/N(He) |
 | `PG1159Config` | `mass_fractions`: mass fractions, normalized to a sum of 1 |
 | `D6Config` | `abundances`: log10 N(Z)/N(C) |
+| `WarmDQConfig` | `log_carbon_to_hydrogen`: log10 N(C)/N(H); `log_carbon_to_helium`: log10 N(C)/N(He); `trace_abundances`: log10 N(Z)/N(C) |
 | `SdBConfig` | `log_helium_to_hydrogen`: log10 N(He)/N(H) |
 
 An `abundances` or `mass_fractions` dictionary replaces the complete default
@@ -213,7 +214,8 @@ dq = run_model(
 - `maximum_seconds` is the time limit for the structure and the final spectrum.
 - A DQ run can take hours and several GB of memory.
 - Hot carbon-dominated DQs, hydrogen-bearing DQs and DQp stars are outside the
-  scope of this module.
+  scope of this module. For carbon-rich atmospheres with hydrogen or helium
+  above about 11,000 K, see `WarmDQConfig` in the [warm DQ guide](models/WarmDQ.md).
 
 See the [DQ guide](models/DQ.md).
 
@@ -277,6 +279,23 @@ run = run_model(config, "results/d6-15680")
 ```
 
 See the [D6 guide](models/D6.md).
+
+### Warm and hot DQ carbon atmospheres
+
+`WarmDQConfig` describes a carbon-rich atmosphere with hydrogen, helium or
+both (warm DQ, DAQ and hot DQ stars). It is in development. A magnetic field
+splits the lines of the emergent spectrum.
+
+```python
+from wd_spectra import WarmDQConfig, run_model
+
+config = WarmDQConfig(effective_temperature=15_000, logg=8.9,
+                      log_carbon_to_hydrogen=1.0,   # log10 N(C)/N(H)
+                      log_carbon_to_helium=None)    # None: no helium
+run = run_model(config, "results/warm-dq-15000")
+```
+
+See the [warm DQ guide](models/WarmDQ.md).
 
 ### DAH magnetic hydrogen atmospheres
 

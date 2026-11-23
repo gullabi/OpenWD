@@ -107,7 +107,11 @@ def test_dq_quick_start_builds_a_valid_cold_request_without_running_it(monkeypat
 
     monkeypatch.setattr("wd_spectra.run_model", capture)
     blocks = re.findall(r"```python\n(.*?)```", (DOCS / "getting-started.md").read_text(), re.S)
-    examples = [code for code in blocks if "DQConfig(" in code and "run_model(" in code]
+    # ``WarmDQConfig(`` also ends in ``DQConfig(``.
+    examples = [
+        code for code in blocks
+        if re.search(r"(?<![A-Za-z])DQConfig\(", code) and "run_model(" in code
+    ]
     assert len(examples) == 1
     exec(compile(examples[0], "<DQ quick start>", "exec"), {})
     assert len(calls) == 1

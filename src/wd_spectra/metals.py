@@ -1089,6 +1089,15 @@ class AtomicTransition:
         "SiIIHeUnifiedProfile | MgIbHeUnifiedProfile | MgIbHeComputedProfile | None"
     ) = None
     independently_validated_supplement: bool = False
+    # Exponent of (T / 10^4 K) that scales ``electron_stark_rate_coefficient_cm3_s``.
+    # ``None`` keeps the Kurucz convention, 1/6.
+    electron_stark_temperature_exponent: float | None = None
+    # Stark shift of the line centre: angular frequency per electron
+    # (cm^3 s^-1) at 10^4 K, positive toward longer wavelength, scaled by
+    # ``(T / 10^4 K)^electron_stark_shift_temperature_exponent`` (``None``:
+    # the width's exponent).  ``None`` leaves the line unshifted.
+    electron_stark_shift_rate_coefficient_cm3_s: float | None = None
+    electron_stark_shift_temperature_exponent: float | None = None
 
 
 @dataclass(frozen=True)
@@ -1105,6 +1114,11 @@ class AtomicIon:
     # Qualified weak channels contribute to inferred natural widths, while
     # the supplement absorption catalogue has a fixed f >= 1e-4 floor.
     supplemental_downward_rates: tuple[tuple[int, float], ...] = ()
+    # Treat jK-coupled levels (parent J in the core label, no LS
+    # multiplicity) as members of the n-manifold of the LS levels of the same
+    # parent term when identifying linear-Stark Rydberg levels.  Off by
+    # default: enabling it changes the released D6 reference spectrum.
+    rydberg_jk_levels_join_ls_manifold: bool = False
 
     def partition_function(
         self,
@@ -1438,6 +1452,9 @@ class MetalLTEState:
     metal_level_dissolution: bool = False
     log_hydrogen_abundance: float | None = None
     trace_hydrogen_state: HydrogenLTEState | None = None
+    # Bulk helium of a metal mixture (``composition_mode == "bulk"``).
+    log_helium_abundance: float | None = None
+    trace_helium_state: HeliumLTEState | None = None
     # n(HeH+) of trace hydrogen in a helium host when H+ + He <-> HeH+ is
     # included (``include_helium_hydride_ion``); the trace-H proton_density
     # then counts free protons only.
@@ -4975,6 +4992,7 @@ def read_nist_asd_strong_atomic_database(
     maximum_accuracy_percent: float = 25.0,
     minimum_oscillator_strength: float = 0.01,
     energy_tolerance_wavenumber: float = 0.15,
+    oscillator_strength_from_einstein_a: bool = False,
 ) -> AtomicDatabase:
     """Replace exact-level strong-line data with evaluated NIST ASD values.
 
@@ -4986,13 +5004,17 @@ def read_nist_asd_strong_atomic_database(
     to the wrong fine-structure component.  The default accepts accuracy
     grades C or better and ``f >= 0.01``; weaker or less certain lines retain
     their original Stout values.
+
+    ``oscillator_strength_from_einstein_a`` derives ``f`` from the tabulated
+    ``A_ki``, the level energies and the statistical weights instead of
+    reading the ``fik`` column.  The ASD tab-delimited output misprints the
+    exponent of ``fik`` for some one-digit grade-E values (``5.e+07`` next to
+    ``log_gf = -1.6``); ``A_ki`` is unaffected.
     """
 
-    if (
-        not np.isfinite(maximum_accuracy_percent)
-        or maximum_accuracy_percent <= 0.0
-    ):
-        raise ValueError("maximum_accuracy_percent must be finite and positive")
+    # ``inf`` also accepts grade E (uncertainty above 50 percent).
+    if np.isnan(maximum_accuracy_percent) or maximum_accuracy_percent <= 0.0:
+        raise ValueError("maximum_accuracy_percent must be positive")
     if (
         not np.isfinite(minimum_oscillator_strength)
         or minimum_oscillator_strength <= 0.0
@@ -5045,6 +5067,16 @@ def read_nist_asd_strong_atomic_database(
                     upper_weight = 2.0 * _nist_asd_j_value(row["J_k"]) + 1.0
                 except (KeyError, TypeError, ValueError):
                     continue
+                if (
+                    oscillator_strength_from_einstein_a
+                    and upper_energy > lower_energy
+                ):
+                    wavelength_cm = 1.0 / (upper_energy - lower_energy)
+                    oscillator_strength = (
+                        ELECTRON_MASS * LIGHT_SPEED * wavelength_cm**2
+                        / (8.0 * PI**2 * ELEMENTARY_CHARGE_ESU**2)
+                        * upper_weight / lower_weight * einstein_a
+                    )
                 if (
                     uncertainty > maximum_accuracy_percent
                     or oscillator_strength < minimum_oscillator_strength
@@ -6950,6 +6982,7 @@ def _accumulate_lte_metal_line_profiles(
     absorption: FloatArray,
     maximum_half_window: FloatArray | None = None,
     red_wing_temperature: FloatArray | None = None,
+    center_shift: FloatArray | None = None,
 ) -> None:
     """Accumulate an ordinary LTE line batch, using C when available.
 
@@ -6958,11 +6991,17 @@ def _accumulate_lte_metal_line_profiles(
     the repeated line/depth/profile arithmetic, so enabling it cannot change
     the physical model.  The reference loop intentionally mirrors the C
     implementation and remains available for source-only installations.
+    ``center_shift`` (Angstrom, line x depth) displaces each depth's profile
+    and window; such batches (lines with a Stark shift) use the reference loop.
     """
 
     compiled = (
-        None if _rt is None
+        None if _rt is None or center_shift is not None
         else getattr(_rt, "accumulate_lte_metal_line_profiles", None)
+    )
+    shift = (
+        None if center_shift is None
+        else np.ascontiguousarray(center_shift, dtype=np.float64)
     )
     values = tuple(
         np.ascontiguousarray(value, dtype=np.float64)
@@ -7000,9 +7039,13 @@ def _accumulate_lte_metal_line_profiles(
         minimum_half_window,
         population_scale,
     ) = values
-    for line_index, line_center in enumerate(center):
-        center_cm = line_center * 1.0e-8
+    for line_index, rest_center in enumerate(center):
+        center_cm = rest_center * 1.0e-8
         for depth in range(absorption.shape[1]):
+            line_center = (
+                rest_center if shift is None
+                else rest_center + shift[line_index, depth]
+            )
             half_window = max(
                 METAL_LINE_MINIMUM_HALF_WINDOW_ANGSTROM,
                 minimum_half_window[line_index],
@@ -7603,6 +7646,28 @@ def _rydberg_orbital(label: str) -> tuple[int, int, str] | None:
     )
 
 
+def _same_rydberg_core(ion: AtomicIon, core: str, other_core: str) -> bool:
+    """Whether a level with ``other_core`` belongs to the ``n``-manifold of ``core``.
+
+    Stout writes jK-coupled levels (for example C I ``2s2.2p.(2Po<1/2>).4f``)
+    with the parent ``J`` in the core, and LS levels of the same
+    configuration (``2s2.2p.(2Po).4d``) without it.  The ionic field acts on
+    the Rydberg electron and leaves the core state unchanged, so with
+    ``ion.rydberg_jk_levels_join_ls_manifold`` a jK level mixes with the jK
+    levels of its own parent ``J`` and with the LS levels of its parent term
+    (whose parent ``J`` is unresolved), but not with levels built on a
+    different parent ``J``.
+    """
+
+    if other_core == core:
+        return True
+    if not ion.rydberg_jk_levels_join_ls_manifold:
+        return False
+    if re.sub(r"<[^>]*>", "", core) != re.sub(r"<[^>]*>", "", other_core):
+        return False
+    return "<" not in core or "<" not in other_core
+
+
 def _level_quantum_defect(
     ion: AtomicIon,
     level: AtomicLevel,
@@ -7640,6 +7705,13 @@ def _series_parent_excitation_ev(
     next_ion = atomic_database.ions.get((ion.element, ion.charge + 1))
     if not parents or next_ion is None or not next_ion.levels:
         return 0.0
+    if ion.rydberg_jk_levels_join_ls_manifold and "<" in core:
+        # A jK level converges on its own parent fine-structure level.
+        parent_level = next(
+            (item for item in next_ion.levels if item.label == core), None
+        )
+        if parent_level is not None:
+            return parent_level.energy_wavenumber / EV_TO_WAVENUMBER
     ground = min(next_ion.levels, key=lambda item: item.energy_wavenumber)
     ground_terms = _PARENT_TERM_PATTERN.findall(ground.label)
     if ground_terms and ground_terms[-1] == parents[-1]:
@@ -7716,7 +7788,7 @@ def _linear_stark_rydberg_level(
         for other in ion.levels
         if (parsed_other := _rydberg_orbital(other.label)) is not None
         and parsed_other[0] == principal
-        and parsed_other[2] == core
+        and _same_rydberg_core(ion, core, parsed_other[2])
         and abs(parsed_other[1] - angular) == 1
         and (value := _level_quantum_defect(
             ion, other, principal, parent_excitation
@@ -7724,7 +7796,8 @@ def _linear_stark_rydberg_level(
     ]
     has_upper = any(
         (parsed_other := _rydberg_orbital(other.label)) is not None
-        and parsed_other[0] == principal and parsed_other[2] == core
+        and parsed_other[0] == principal
+        and _same_rydberg_core(ion, core, parsed_other[2])
         and parsed_other[1] == angular + 1
         for other in ion.levels
     )
@@ -7848,9 +7921,18 @@ def _rydberg_stark_manifold(
     weight_sum: dict[int, float] = {}
     for other in ion.levels:
         parsed_other = _rydberg_orbital(other.label)
-        if parsed_other is None or parsed_other[0] != principal or parsed_other[2] != core:
+        if (
+            parsed_other is None or parsed_other[0] != principal
+            or not _same_rydberg_core(ion, core, parsed_other[2])
+        ):
             continue
-        if _TERM_MULTIPLICITY_PATTERN.findall(other.label.split(".")[-1]) != multiplicity:
+        other_multiplicity = _TERM_MULTIPLICITY_PATTERN.findall(other.label.split(".")[-1])
+        if ion.rydberg_jk_levels_join_ls_manifold:
+            # jK-coupled levels carry no LS multiplicity: they mix both
+            # spins and join the manifold of either.
+            if multiplicity and other_multiplicity and other_multiplicity != multiplicity:
+                continue
+        elif other_multiplicity != multiplicity:
             continue
         l_other = parsed_other[1]
         energy_sum[l_other] = (
@@ -9628,12 +9710,13 @@ def metal_line_mass_absorption_coefficient(
     if metal_state.reference_species == "H":
         hydrogen_density = atmosphere.neutral_h_density
     elif (
-        metal_state.reference_species == "He"
+        metal_state.reference_species in ("He", "metal")
         and metal_state.trace_hydrogen_state is not None
     ):
-        # Trace H participates in the same charge closure as the metals.
-        # Its neutral atoms also broaden metal lines; the proton or total
-        # H-nucleus density must not be used for neutral collisions.
+        # Trace H (helium host) or bulk H (metal mixture) participates in the
+        # same charge closure as the metals.  Its neutral atoms also broaden
+        # metal lines; the proton or total H-nucleus density must not be used
+        # for neutral collisions.
         hydrogen_density = metal_state.trace_hydrogen_state.neutral_h_density
     else:
         hydrogen_density = np.zeros(atmosphere.n_depth)
@@ -9709,6 +9792,8 @@ def metal_line_mass_absorption_coefficient(
         "NaI": empty_profile_batch(),
         "CaI_reference": empty_profile_batch(),
         "HeUnified": empty_profile_batch(),
+        # Lines with a Stark shift: per-depth centres, reference loop.
+        "shifted": {**empty_profile_batch(), "center_shift": []},
     }
     helium_present = bool(np.any(helium_density > 0.0))
     unified_he_lines: list[tuple] = []
@@ -9717,7 +9802,9 @@ def metal_line_mass_absorption_coefficient(
         batch = ordinary_profile_batches[key]
         if not batch["center"]:
             return
-        target = result if key == "result" else replacement_ordinary[key]
+        target = (
+            result if key in ("result", "shifted") else replacement_ordinary[key]
+        )
         _accumulate_lte_metal_line_profiles(
             wavelength,
             np.asarray(batch["center"], dtype=np.float64),
@@ -9729,6 +9816,7 @@ def metal_line_mass_absorption_coefficient(
             target,
             np.stack(batch["maximum_half_window"]) if impact_validity_support else None,
             np.asarray(atmosphere.temperature, dtype=np.float64) if red_wing_boltzmann else None,
+            np.stack(batch["center_shift"]) if key == "shifted" else None,
         )
         for values in batch.values():
             values.clear()
@@ -10144,7 +10232,11 @@ def metal_line_mass_absorption_coefficient(
             electron_stark_rate = (
                 line.electron_stark_rate_coefficient_cm3_s
                 * metal_state.electron_density
-                * (atmosphere.temperature / 10_000.0) ** (1.0 / 6.0)
+                * (atmosphere.temperature / 10_000.0) ** (
+                    1.0 / 6.0
+                    if line.electron_stark_temperature_exponent is None
+                    else line.electron_stark_temperature_exponent
+                )
             )
         elif classical_stark_rate > 0.0:
             electron_stark_rate = (
@@ -10157,6 +10249,22 @@ def metal_line_mass_absorption_coefficient(
             * (natural_rate + collision_rate + electron_stark_rate)
             / (4.0 * PI * LIGHT_SPEED) * 1.0e8
         )
+        stark_shift_angstrom = None
+        if line.electron_stark_shift_rate_coefficient_cm3_s is not None:
+            # Delta lambda = lambda^2 Delta omega / (2 pi c).
+            stark_shift_angstrom = (
+                center_cm**2
+                * line.electron_stark_shift_rate_coefficient_cm3_s
+                * metal_state.electron_density
+                * (atmosphere.temperature / 10_000.0) ** (
+                    line.electron_stark_shift_temperature_exponent
+                    if line.electron_stark_shift_temperature_exponent is not None
+                    else 1.0 / 6.0
+                    if line.electron_stark_temperature_exponent is None
+                    else line.electron_stark_temperature_exponent
+                )
+                / (2.0 * PI * LIGHT_SPEED) * 1.0e8
+            )
         population_factor = (
             lower_population * stimulated / atmosphere.mass_density
             * line_survival
@@ -10410,7 +10518,13 @@ def metal_line_mass_absorption_coefficient(
                     )
         else:
             batch_key = "result" if replacement_key is None else replacement_key
+            if stark_shift_angstrom is not None:
+                if replacement_key is not None:
+                    raise ValueError("Stark-shifted lines cannot use a replacement profile batch")
+                batch_key = "shifted"
             batch = ordinary_profile_batches[batch_key]
+            if stark_shift_angstrom is not None:
+                batch["center_shift"].append(stark_shift_angstrom)
             batch["center"].append(center)
             batch["integrated_strength"].append(
                 integrated_cross_section * line.absorption_oscillator_strength
