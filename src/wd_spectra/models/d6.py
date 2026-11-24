@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import Callable, Mapping
 
 import numpy as np
@@ -26,6 +27,7 @@ from ..d6 import (
     synthesize_d6_spectrum,
 )
 from ..metals import (
+    AtomicDatabase,
     _canonical_element,
     augment_oxygen_i_6258_6271_multiplet,
     augment_oxygen_i_excited_core_3d_transitions,
@@ -155,6 +157,17 @@ def _atomic_inputs(data: ModelData, elements: tuple[str, ...]):
     if "O" in elements:
         database = augment_oxygen_i_6258_6271_multiplet(database)
         database = augment_oxygen_i_excited_core_3d_transitions(database)
+    # jK-coupled levels (parent J in the core label, for example
+    # C I 2p(2Po<1/2>)4f) join the Stark n-manifold of the LS levels of their
+    # parent term and of the jK levels of the same parent J, so they receive
+    # the quasi-static linear-Stark treatment (metals._same_rydberg_core).
+    database = AtomicDatabase(
+        MappingProxyType({
+            key: replace(ion, rydberg_jk_levels_join_ls_manifold=True)
+            for key, ion in database.ions.items()
+        }),
+        source=database.source,
+    )
     # Verner fits supply the ground-state continuum of every loaded stage
     # that has no level-resolved atom (replacement is stage-specific).
     photoionization = read_verner_photoionization_database(
