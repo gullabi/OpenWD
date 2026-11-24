@@ -1,4 +1,4 @@
-# Warm and hot DQ: carbon atmospheres with hydrogen and helium (in development)
+# Warm and hot DQ: carbon atmospheres with hydrogen and helium
 
 [Model guide](README.md) · [Getting started](../getting-started.md)
 
@@ -10,8 +10,8 @@ balance, the mass and the opacity.
 A magnetic field can be added to the emergent spectrum. OpenWD does not fit
 observations.
 
-The class is in development. It has been run at the points listed under
-[Tested range](#tested-range) only.
+All data are bundled; see [Getting started](../getting-started.md) for the
+installation.
 
 ## Run a model
 
@@ -30,15 +30,16 @@ run = run_model(
 spectrum = run.spectrum  # vacuum wavelength (Å), surface F_lambda
 ```
 
-The default spectrum covers 3500–9900 Å in 0.2 Å steps. Give `wavelength=`
-to `run_model` for a different grid.
+A standard-quality cold start takes 1.2–2.7 hours on one core. The default
+spectrum covers 3500–9900 Å in 0.2 Å steps. Give `wavelength=` to
+`run_model` for a different grid.
 
 ## Options
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `effective_temperature`, `logg` | 16000 K, 8.8 | Stellar parameters. |
-| `log_carbon_to_hydrogen` | 1.5 | log10 N(C)/N(H). `None` removes hydrogen. |
+| `effective_temperature`, `logg` | 13574 K, 8.86 | Stellar parameters. The defaults are WD J1215+4700 (Kilic et al. 2026). |
+| `log_carbon_to_hydrogen` | 1.11 | log10 N(C)/N(H). `None` removes hydrogen. |
 | `log_carbon_to_helium` | `None` | log10 N(C)/N(He). `None` removes helium. |
 | `trace_abundances` | `{}` | log10 N(X)/N(C) of other elements, for example `{"O": -1.0}`. |
 | `quality` | `"standard"` | `"quick"` (24 depths), `"standard"` (48 depths), `"production"` (72 depths). |
@@ -143,64 +144,124 @@ to `run_model` for a different grid.
 
 ## Validation
 
-Models were computed at published parameters and compared with public
-spectra. No stellar parameter was fitted: only a radial velocity and, per
-spectrum, a degree-5 multiplicative Chebyshev polynomial (flux calibration,
-reddening and solid angle) were adjusted. The model was averaged over each
-pixel and multiplied by the DESI resolution matrix, or convolved with the
-SDSS `wdisp` dispersion. Standard quality, 3000 structure lines and
-convection (ML2, α = 1.25), as in the published fits.
+All comparisons use published parameters; nothing stellar is refit. Each
+model is a cold start of `run_model` at standard quality with the class
+defaults (48 depths, 25,000 structure and spectrum lines, ML2 α = 1.25). Only
+a radial velocity and, per spectrum, a degree-5 multiplicative Chebyshev
+polynomial (flux calibration, reddening and solid angle) are adjusted. The
+model is averaged over each pixel and multiplied by the DESI resolution
+matrix, or convolved with the SDSS `wdisp` dispersion. The figures divide data
+and model by the same polynomial times the model's line-free continuum, so
+they show flux relative to the model continuum. Telluric bands are excluded,
+and DESI spectra are drawn in 2 Å bins.
 
-- **DESI DR1, C+H.** Kilic et al. (2026) fitted 70 DESI DQs with
-  helium-free C+H models (spectroscopic Teff and log C/H; log g from the
-  Gaia parallax).
-- **SDSS, C/He.** Koester & Kepler (2019) fitted warm DQs with C/He models
-  containing trace hydrogen ([H/He] = −4.5) and hot DQs with [C/He] = 2
-  (photometric Teff and log g).
+- **C+H.** Kilic et al. (2026) fitted the DESI DR1 DQs with helium-free C+H
+  models: spectroscopic Teff and log C/H, and log g from the Gaia parallax.
+  log C/H = 3.00 is the edge of their grid (no hydrogen detected). Twelve
+  stars have DESI spectra; for SDSS J1622+3004 and SDSS J1728+5558 the
+  SDSS spectra have higher signal-to-noise.
+- **C/He.** Koester & Kepler (2019) fitted SDSS warm DQs with C/He models
+  containing trace hydrogen ([H/He] = −4.5) and hot DQs with [C/He] = 2,
+  using photometric Teff and log g.
+
+### Fourteen warm and hot DQs
+
+[![DESI and SDSS spectra of fourteen warm and hot DQs compared with OpenWD WarmDQ models](../assets/warm-dq-paper.png)](../assets/warm-dq-paper.pdf)
+
+DESI and SDSS spectra (gray) and OpenWD models (orange) at the C+H parameters
+of Kilic et al. (2026), sorted by Teff (12,600–22,600 K, log g 8.43–9.05,
+log C/H −0.01 to 3.00). The models reproduce the C I and C II lines, the
+broad C I 5f band near 4480 Å and the Balmer lines, from the hydrogen-rich
+DAQs (log C/H ≈ 0) to the hot DQs. WD J1104+2035 is the exception: its
+carbon lines are much broader and shallower than the model's.
+
+### Carbon lines and Hα
+
+[![Carbon lines and H-alpha of six warm and hot DQs compared with OpenWD models](../assets/warm-dq-lines.png)](../assets/warm-dq-lines.pdf)
+
+Eight windows of six of the stars above, from 12,600 to 21,900 K. The
+measured red shifts of C I 4772, 4932 and 5052 Å and the semiclassical C II
+widths reproduce the line positions and wings. The strong C I lines are
+somewhat too deep in most stars, and C II 4267 Å is too strong in SDSS
+J1728+5558.
+
+### C+H against C/He
+
+[![SDSS spectra of four DQs with the C+H and the C/He solutions](../assets/warm-dq-che.png)](../assets/warm-dq-che.pdf)
+
+SDSS spectra (gray) with the C+H solutions of Kilic et al. (2026, orange) and
+the C/He solutions of Koester & Kepler (2019, green). Dotted lines mark
+He I 4472, 5877 and 6680 Å. SDSS J1622+3004 and SDSS J1728+5558 have both
+solutions. With the fixed trace hydrogen of the C/He grid, Hα and Hβ are two
+to three times too weak, and the C/He models show He I lines that the spectra
+lack. The C+H solutions fit far better. SDSS J0236+2503 shows the same
+pattern. The hot DQ SDSS J0818+0102 ([C/He] = 2, no hydrogen) is matched line
+by line, but many C II lines are too deep and the model lacks a broad
+depression near 4100–4250 Å.
+
+### Scores
 
 χ² per pixel is given for the model and for the same model without lines.
-The ratios are model/observed pseudo-equivalent widths, relative to the
-model continuum.
+The ratios are model/observed equivalent widths against a local linear
+continuum; "–" marks a line not detected at 3σ.
 
-| Spectrum | Parameters (reference) | S/N | χ²/px | without lines | C I 4933 | C I 7115 | C II 4268 | Hα |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DESI WD J0146−0426 | 12603 K, 8.71, C/H 1.51 (K26) | 14 | 1.34 | 2.03 | 1.54 | 1.22 | 1.28 | 0.97 |
-| DESI WD J0918−0525 | 12830 K, 8.80, C/H 1.42 (K26) | 6 | 1.06 | 1.14 | 0.99 | 1.29 | – | 1.10 |
-| DESI WD J0936+0607 | 12641 K, 8.88, C/H 3.00 (K26) | 6 | 1.03 | 1.10 | 1.64 | 1.21 | – | 1.07 |
-| DESI WD J1215+4700 | 13574 K, 8.86, C/H 1.11 (K26) | 8 | 1.01 | 1.22 | 1.32 | 1.31 | 1.05 | 1.01 |
-| DESI G35-26 | 16338 K, 9.05, C/H 0.95 (K26) | 26 | 1.56 | 4.84 | 1.22 | 1.14 | 1.22 | 1.02 |
-| DESI WD J2302+0045 | 21851 K, 8.84, C/H 2.39 (K26) | 17 | 1.47 | 2.96 | 1.12 | 1.18 | 1.09 | 0.96 |
-| SDSS J1622+3004 | 15193 K, 9.00, C/H 1.35 (K26) | 38 | 1.46 | 5.88 | 1.40 | 1.18 | 1.26 | 1.03 |
-| SDSS J1622+3004 | 16131 K, 8.93, [C/He] −0.10 (KK19) | 38 | 3.13 | 5.89 | 1.32 | 1.18 | 1.64 | 0.45 |
-| SDSS J1728+5558 | 14655 K, 8.91, C/H 1.76 (K26) | 48 | 2.64 | 9.22 | 1.51 | 1.11 | 1.65 | 0.95 |
-| SDSS J1728+5558 | 14772 K, 8.87, [C/He] +0.30 (KK19) | 48 | 3.82 | 9.20 | 1.53 | 1.13 | 1.86 | 0.54 |
-| SDSS J0236+2503 | 14611 K, 8.78, [C/He] −1.82 (KK19) | 16 | 1.29 | 1.68 | 1.58 | 1.08 | 0.72 | 0.68 |
-| SDSS J0818+0102 | 24483 K, 8.33, [C/He] 2 (KK19) | 23 | 2.49 | 3.28 | 1.00 | 1.28 | 1.32 | 1.06 |
+| Star | Spectrum | Teff (K) | log g | Composition | χ²/px | without lines | C I 4933 | C I 5053 | C I 7115 | C II 4268 | Hα |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| WD J0146-0426 | DESI | 12603 | 8.71 | C/H 1.51 | 1.27 | 2.03 | 1.04 | 1.38 | 2.03 | 1.24 | 1.12 |
+| WD J1215+4700 | DESI | 13574 | 8.86 | C/H 1.11 | 1.00 | 1.22 | – | 0.88 | 1.18 | – | 1.18 |
+| WD J0324-0135 | DESI | 14323 | 8.43 | C/H 0.17 | 1.13 | 1.62 | 0.90 | – | – | – | 1.41 |
+| SDSS J1728+5558 | SDSS | 14655 | 8.91 | C/H 1.76 | 2.05 | 9.22 | 1.09 | 1.17 | 0.96 | 1.63 | 0.97 |
+| WD J2300+0848 | DESI | 14964 | 8.92 | C/H -0.01 | 1.25 | 2.36 | – | 1.92 | 0.84 | – | 0.95 |
+| WD J1448+0519 | DESI | 15080 | 8.98 | C/H 1.04 | 1.11 | 1.61 | 1.26 | 1.07 | 0.97 | 2.05 | 1.02 |
+| SDSS J1622+3004 | SDSS | 15193 | 9.00 | C/H 1.35 | 1.11 | 5.88 | 1.21 | 1.26 | 1.01 | 1.18 | 1.07 |
+| WD J0117+1602 | DESI | 15682 | 8.92 | C/H 0.93 | 1.10 | 1.75 | 1.54 | 1.37 | 0.99 | 1.38 | 0.98 |
+| G35-26 | DESI | 16338 | 9.05 | C/H 0.95 | 1.45 | 4.84 | 1.24 | 1.15 | 1.20 | 1.28 | 1.07 |
+| WD J1803+2607 | DESI | 18315 | 8.65 | C/H 0.94 | 1.04 | 1.30 | – | 1.03 | 1.45 | 0.90 | 0.99 |
+| WD J0907+1749 | DESI | 20721 | 8.82 | C/H 3.00 | 1.17 | 1.38 | – | 1.48 | 1.68 | 0.97 | 0.88 |
+| WD J2302+0045 | DESI | 21851 | 8.84 | C/H 2.39 | 1.44 | 2.96 | – | 0.88 | 1.18 | 1.21 | 1.43 |
+| WD J0706+4833 | DESI | 22353 | 8.88 | C/H 3.00 | 1.43 | 1.53 | – | 1.40 | 1.57 | 1.44 | 3.06 |
+| WD J1104+2035 | DESI | 22567 | 8.81 | C/H 3.00 | 4.58 | 8.42 | – | 2.19 | 1.54 | 1.25 | 2.10 |
+| SDSS J0236+2503 | SDSS | 14611 | 8.78 | C/H 2.68, C/He -1.82 | 1.26 | 1.68 | 1.13 | 1.15 | 1.38 | 0.96 | 0.53 |
+| SDSS J1728+5558 | SDSS | 14772 | 8.87 | C/H 4.80, C/He 0.30 | 3.25 | 9.20 | 1.19 | 1.17 | 0.97 | 1.82 | 0.32 |
+| SDSS J1622+3004 | SDSS | 16131 | 8.93 | C/H 4.39, C/He -0.10 | 2.94 | 5.89 | 1.30 | 1.19 | 0.99 | 1.69 | 0.31 |
+| SDSS J0818+0102 | SDSS | 24483 | 8.33 | C/He 2.00 | 2.61 | 3.28 | – | 1.07 | 0.94 | 1.33 | 1.19 |
 
-K26: Kilic et al. (2026); KK19: Koester & Kepler (2019).
+Composition: log N(C)/N(H) and log N(C)/N(He). The C+H rows use the
+parameters of Kilic et al. (2026), the C/He rows those of Koester & Kepler
+(2019). The Hα window (6520–6610 Å) includes C II 6578 and 6583 Å.
 
-- Every model reproduces the spectrum far better than the same model
-  without lines. Hα and Hβ, including their Stark wings, agree for the
-  C+H solutions.
-- Where a star has both solutions, the C+H one fits better: the fixed
-  trace hydrogen of the C/He grid leaves Hα and Hβ two to four times too
-  weak.
-- At the C/He parameters the models show He I 4472, 5876 and 6678 Å lines
-  (5876 Å: 2.6–4.2 Å equivalent width) that are absent from the spectra.
-  Kilic et al. (2024) reach the same conclusion with independent models.
-  The [DZ](DZ.md) class at the same parameters agrees with this class to
-  2% in temperature, 15% in density and 0.2 Å in the He I equivalent widths.
-- For the C+H solutions the carbon lines are systematically too strong:
-  C I 4933 Å by up to 65%, C I 5053 and 7115 Å by 10–30%, C II 4268 Å by
-  5–65% and C II 3920 Å at 14,000–17,000 K.
-  C I 5381 Å is 30% too weak; its Kurucz Stark constant is nine times
-  smaller than the measured width (Jones & Wiese 1984). Weak C I lines
-  without NIST data (3s–5p at 4065 Å, 3s–4p ³D at 4892 Å) are much stronger
-  than observed. Koester & Kepler (2019) and Kilic et al. (2024) report
-  similar carbon-line problems with their models.
-- A radiative atmosphere of WD J2302+0045 (cold start continued from the
-  convective one) gives the same χ² as the convective model; the normalized
-  spectra differ by 0.4% rms.
+- The lines lower χ² in every star, by up to a factor of five in the
+  high-signal-to-noise SDSS spectra. Hα and Hβ, including their Stark wings,
+  follow the data in the hydrogen-rich stars.
+- The strong C I lines remain 10–40% stronger than observed in most stars
+  cooler than 17,000 K (C I 5052 Å: median ratio 1.2, range 0.88–1.92).
+  C II 4267 Å is up to twice too strong between 14,000 and 16,000 K.
+- At log C/H = 3.00, the grid edge of Kilic et al., WD J0706+4833 and
+  WD J1104+2035 show no Hα, but the model predicts it. Their log C/H is a
+  lower limit.
+- WD J1104+2035 (χ² 4.6) has carbon lines several times broader and
+  shallower than the model at its published parameters, and Kilic et al.
+  (2026) fitted the magnetic DQs of their sample with nonmagnetic models.
+  Whatever broadens its lines is not in this comparison.
+- Where a star has both solutions, the C+H one fits better: χ² 1.11 against
+  2.94 for SDSS J1622+3004 and 2.05 against 3.25 for SDSS J1728+5558. At the
+  C/He parameters the models show He I 4472, 5877 and 6680 Å lines that the
+  spectra do not. Kilic et al. (2024) reach the same conclusion with
+  independent models.
+
+### Reproduce
+
+The figures and the table come from three scripts in `research/`:
+
+```bash
+PYTHONPATH=src python research/warm_dq_doc_models.py results/warm-dq-doc       # 18 cold starts
+python research/warm_dq_doc_data.py results/warm-dq-doc/data                   # public spectra
+python research/plot_warm_dq_doc_comparison.py --models results/warm-dq-doc \
+    --data results/warm-dq-doc/data --output docs/assets
+```
+
+The models take 1.2–2.7 hours each on one core. The data script needs
+`astropy` and `healpy`, which are not OpenWD dependencies.
 
 ## Limitations
 
@@ -208,6 +269,8 @@ K26: Kilic et al. (2026); KK19: Koester & Kepler (2019).
   Swan bands appear in observed warm DQs and are not modelled.
 - Ideal fluid. Helium-dominated compositions at high density (cool, high
   gravity) need the non-ideal corrections of the DQ class.
+- Magnetic spectra are covered by unit tests and a fixed-spectrum control,
+  but this guide does not compare them with observed magnetic DQs.
 - Helium lines are not Zeeman split in magnetic models.
 - The magnetic field does not enter the structure, the ionization balance or
   the continuum. Polarization and magneto-optical effects are not computed.

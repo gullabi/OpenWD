@@ -283,8 +283,8 @@ See the [D6 guide](models/D6.md).
 ### Warm and hot DQ carbon atmospheres
 
 `WarmDQConfig` describes a carbon-rich atmosphere with hydrogen, helium or
-both (warm DQ, DAQ and hot DQ stars). It is in development. A magnetic field
-splits the lines of the emergent spectrum.
+both (warm DQ, DAQ and hot DQ stars). A magnetic field splits the lines of
+the emergent spectrum.
 
 ```python
 from wd_spectra import WarmDQConfig, run_model

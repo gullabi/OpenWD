@@ -64,11 +64,14 @@ class WarmDQConfig:
     ``mixing_length_alpha=None`` gives a radiative atmosphere.  With
     ``magnetic_convection_suppression`` (the default) the atmosphere is also
     radiative when the field is 0.05 MG or stronger.
+
+    The default parameters are those of WD J1215+4700 (Kilic et al. 2026),
+    the cold-start canary of this class.
     """
 
-    effective_temperature: float = 16_000.0
-    logg: float = 8.8
-    log_carbon_to_hydrogen: float | None = 1.5
+    effective_temperature: float = 13_574.0
+    logg: float = 8.86
+    log_carbon_to_hydrogen: float | None = 1.11
     log_carbon_to_helium: float | None = None
     trace_abundances: Mapping[str, float] = field(default_factory=dict)
     quality: Quality = "standard"

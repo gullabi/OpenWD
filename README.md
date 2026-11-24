@@ -20,7 +20,7 @@ transfer from a cold start; it does not interpolate in a precomputed grid.
 | DO/DAO | Hot helium or hydrogen–helium | NLTE H and He | [DO/DAO](docs/models/DO-DAO.md) |
 | PG 1159 | Hot helium–carbon–oxygen | NLTE He, C and O | [PG 1159](docs/models/PG1159.md) |
 | D6 | Carbon–oxygen with heavier elements, no H or He | LTE | [D6](docs/models/D6.md) |
-| Warm/hot DQ (in development) | Carbon with hydrogen and helium, optional magnetic field | LTE | [Warm DQ](docs/models/WarmDQ.md) |
+| Warm/hot DQ | Carbon with hydrogen and helium, optional magnetic field | LTE | [Warm DQ](docs/models/WarmDQ.md) |
 | DAH | Magnetic hydrogen | LTE | [DAH](docs/models/DAH.md) |
 | sdB | Hot subdwarf hydrogen–helium | LTE structure, NLTE H and He | [sdB](docs/models/sdB.md) |
 

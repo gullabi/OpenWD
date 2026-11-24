@@ -42,6 +42,9 @@ SPECTRA = tuple("dah-" + key for key in DAH_PAPER) + (
     "daz-galex1931",
     "dq-j1311",
     "sdb-hd4539",
+    "warm-dq-j1215",
+    "warm-dq-j1215-uniform-10mg",
+    "warm-dq-j0236-che",
 )
 CANARY = "tests/test_protected_model_canaries.py::"
 COLD_TESTS = {
@@ -55,7 +58,7 @@ COLD_TESTS = {
     "sdb-30000-he0": "tests/test_sdb_cold_canary.py::test_equal_hydrogen_and_helium_sdb_converges_from_cold",
     **{
         case: f"tests/test_released_family_canaries.py::test_released_family_cold_start[{case}]"
-        for case in ("dz-pg1225", "pg1159-pg1424", "d6-j1637")
+        for case in ("dz-pg1225", "pg1159-pg1424", "d6-j1637", "warm-dq-j1215")
     },
     "db-10000": CANARY
     + "test_protected_db_cold_starts_converge_without_fallback[10000.0-90]",
@@ -121,6 +124,10 @@ def commands(tier, cases=()):
         elif tier == "spectra" and case == "sdb-hd4539":
             tasks[case] = pytest + [
                 "tests/test_sdb_spectral_regression.py::test_hd4539_fixed_spectrum_matches_research_driver"
+            ]
+        elif tier == "spectra" and case.startswith("warm-dq-"):
+            tasks[case] = pytest + [
+                f"tests/test_warm_dq_regression.py::test_fixed_atmosphere_spectrum[{case}]"
             ]
         elif tier == "spectra" and case.startswith("daz-"):
             name = "g149_28" if case == "daz-g149-28" else "galex1931"
@@ -200,6 +207,8 @@ def numerical_identity(root=ROOT):
         "tests/test_radiative_da_convergence.py",
         "tests/test_d6_regression.py",
         "tests/d6_regression_support.py",
+        "tests/test_warm_dq_regression.py",
+        "tests/warm_dq_regression_support.py",
         "tests/conftest.py",
     ):
         if (root / name).is_file():

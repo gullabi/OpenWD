@@ -82,7 +82,7 @@ source, data and compiled modules.
 | Tier | Contents | When to run |
 | --- | --- | --- |
 | `fast` | `pytest tests -m 'not canary and not spectral'` and the cool-model component tests | After each change |
-| `spectra` | Fixed-atmosphere spectrum regressions for DA, DB, DAB, DAH, DZ, DAZ, DQ, D6 and sdB | After a change to opacity, line profiles or transfer |
+| `spectra` | Fixed-atmosphere spectrum regressions for DA, DB, DAB, DAH, DZ, DAZ, DQ, D6, warm DQ and sdB | After a change to opacity, line profiles or transfer |
 | `regression` | J1637 (D6) two-step warm trajectory against the current frozen reference | After a change that affects D6 |
 | `cold` | Cold-start canaries: each protected model from parameters, with all convergence checks | For a final candidate |
 | `full` | `fast`, then `spectra`, then `cold`; stops at the first failed tier | Before a release |
