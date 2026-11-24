@@ -140,6 +140,7 @@ def _molecular_probe(config):
 
 from .pg1159 import PG1159Config, validate_config as validate_pg1159_config
 from .d6 import D6Config
+from .warm_dq import WarmDQConfig, validate_config as validate_warm_dq_config
 from .dah import DAHConfig
 from .sdb import SdBConfig, validate_config as validate_sdb_config
 
@@ -153,8 +154,8 @@ def select_physics(config, *, data=None, policy=PhysicsSelectionPolicy()):
     """
     if not isinstance(config, (DAConfig, DAZConfig, DBConfig, DABConfig, DZConfig,
                                DQConfig, DOConfig, DAOConfig, PG1159Config, D6Config,
-                               DAHConfig, SdBConfig)):
-        raise TypeError('expected a DAConfig, DAZConfig, DBConfig, DABConfig, DZConfig, DQConfig, DOConfig, DAOConfig, PG1159Config, D6Config, DAHConfig or SdBConfig')
+                               DAHConfig, SdBConfig, WarmDQConfig)):
+        raise TypeError('expected a DAConfig, DAZConfig, DBConfig, DABConfig, DZConfig, DQConfig, DOConfig, DAOConfig, PG1159Config, D6Config, DAHConfig, SdBConfig or WarmDQConfig')
     data = ModelData.default() if data is None else data
     t, g = config.effective_temperature, config.logg
     if not np.isfinite(t) or t <= 0 or not np.isfinite(g):
@@ -188,6 +189,19 @@ def select_physics(config, *, data=None, policy=PhysicsSelectionPolicy()):
             {"bulk_metal_charge_pressure_closure": True, "trace_host": None},
             False,
             False,
+        )
+    if isinstance(config, WarmDQConfig):
+        validate_warm_dq_config(config)
+        return PhysicsSelection(
+            "warm-dq",
+            "Carbon-rich bulk LTE mixture with atomic hydrogen and helium, "
+            "shared trust-region solver",
+            {"bulk_metal_charge_pressure_closure": True,
+             "hydrogen_in_mixture": config.log_carbon_to_hydrogen is not None,
+             "helium_in_mixture": config.log_carbon_to_helium is not None,
+             "trace_host": None},
+            False,
+            True,
         )
     if isinstance(config, SdBConfig):
         validate_sdb_config(config)

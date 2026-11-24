@@ -94,6 +94,8 @@ def requires_full(paths, *, contents=None):
                 "test_radiative_da_convergence.py",
                 "test_d6_regression.py",
                 "d6_regression_support.py",
+                "test_warm_dq_regression.py",
+                "warm_dq_regression_support.py",
             }
         ):
             continue

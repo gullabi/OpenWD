@@ -58,7 +58,7 @@ These approximations apply to all classes unless noted:
 - **Homogeneous composition.** Abundances are the same at all depths.
   Gravitational settling, radiative levitation and stratified layers are not
   modeled.
-- **LTE.** DA, DB, DAB/DBA, DZ/DBZ/DAZ, DQ, D6 and DAH use LTE populations.
+- **LTE.** DA, DB, DAB/DBA, DZ/DBZ/DAZ, DQ, D6, warm DQ and DAH use LTE populations.
   DO/DAO and PG 1159 use NLTE. sdB uses an LTE structure with NLTE H/He
   populations. NLTE line cores of cool DAs are not modeled.
 - **Convection.** Convection uses local ML2 mixing-length theory, with
@@ -107,6 +107,10 @@ These approximations apply to all classes unless noted:
 - **[PG 1159](models/PG1159.md).** The outermost temperatures are uncertain.
   Trace elements do not change the structure.
 - **[D6](models/D6.md).** No molecules or negative ions. Tested on few stars.
+- **[Warm DQ](models/WarmDQ.md).** No molecules. The magnetic field enters
+  only the line opacity of the spectrum, and magnetic spectra are not yet
+  compared with observations. At published parameters the strong C I lines
+  are 10–40% stronger than observed, and C II 4267 Å up to twice as strong.
 - **[DAH](models/DAH.md).** Nonmagnetic structure, approximate Stark–Zeeman
   profiles, Stokes I by default, hydrogen only.
 - **[sdB](models/sdB.md).** The LTE structure is likely inaccurate above about

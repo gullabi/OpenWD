@@ -56,6 +56,8 @@ def test_non_numerical_changes_do_not_trigger_cold_models(path):
         "tests/test_released_family_canaries.py",
         "tests/test_d6_regression.py",
         "tests/d6_regression_support.py",
+        "tests/test_warm_dq_regression.py",
+        "tests/warm_dq_regression_support.py",
         "tools/validate.py",
         ".github/workflows/canaries.yml",
         "unknown-input.bin",
@@ -95,7 +97,7 @@ def test_dq_fixed_spectrum_and_true_cold_are_separate_tiers():
 
 def test_every_released_family_has_a_cold_case():
     assert {case.split("-")[0] for case in runner.COLD} >= {
-        "da", "daz", "db", "dab", "dz", "dq", "do", "dao", "pg1159", "d6", "dah", "sdb"
+        "da", "daz", "db", "dab", "dz", "dq", "do", "dao", "pg1159", "d6", "dah", "sdb", "warm"
     }
 
 
@@ -106,6 +108,16 @@ def test_sdb_fixed_spectrum_and_cold_start_are_separate_checks():
     assert runner.commands('spectra', ['sdb-hd4539'])['sdb-hd4539'][-1] == (
         'tests/test_sdb_spectral_regression.py::test_hd4539_fixed_spectrum_matches_research_driver'
     )
+
+
+def test_warm_dq_fixed_spectra_and_cold_start_are_separate_checks():
+    assert runner.commands("cold", ["warm-dq-j1215"])["warm-dq-j1215"][-1] == (
+        "tests/test_released_family_canaries.py::test_released_family_cold_start[warm-dq-j1215]"
+    )
+    for case in ("warm-dq-j1215", "warm-dq-j1215-uniform-10mg", "warm-dq-j0236-che"):
+        assert runner.commands("spectra", [case])[case][-1] == (
+            f"tests/test_warm_dq_regression.py::test_fixed_atmosphere_spectrum[{case}]"
+        )
 
 
 @pytest.mark.parametrize("variable", ["OPENWD_DATA", "OPENWD_DQ_DATA"])

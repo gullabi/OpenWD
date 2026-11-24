@@ -38,11 +38,26 @@ from .constants import (
     BOLTZMANN,
     ELECTRON_MASS,
     ELEMENTARY_CHARGE_ESU,
+    HELIUM_FIRST_IONIZATION_ENERGY,
+    HELIUM_MASS,
+    HELIUM_SECOND_IONIZATION_ENERGY,
+    HYDROGEN_IONIZATION_ENERGY,
+    HYDROGEN_MASS,
     LIGHT_SPEED,
     PI,
     PLANCK,
 )
-from .eos import charged_particle_hydrogen_occupation_probability
+from .eos import (
+    HELIUM_I_LOW_TERM_ENERGY,
+    HELIUM_I_LOW_TERM_STATISTICAL_WEIGHT,
+    HM_HELIUM_NEUTRAL_RADIUS_SCALE,
+    HM_MAX_BOUND_LEVEL,
+    HeliumLTEState,
+    HydrogenLTEState,
+    _helium_partition_functions,
+    charged_particle_hydrogen_occupation_probability,
+    hydrogen_level_distribution,
+)
 from .light_metal_nlte import (
     light_metal_free_free_mass_absorption_coefficient,
     read_tlusty_photoionization_threshold_data,
@@ -1877,6 +1892,33 @@ def topbase_dissolved_level_pseudocontinuum_mass_absorption_coefficient(
     return result
 
 
+def split_bulk_light_abundances(
+    log_number_abundance: Mapping[str, float],
+) -> tuple[dict[str, float], float | None, float | None]:
+    """Separate optional ``"H"`` and ``"He"`` entries from a bulk mapping.
+
+    Hydrogen and helium are full members of the bulk mixture (nuclei, ions,
+    electrons and mass), but their populations and opacity come from the
+    occupation-probability machinery of the DA and DB classes, not from the
+    metal line database.  The returned metal mapping keeps the caller's keys;
+    the hydrogen and helium values are logarithmic number ratios to the
+    reference element, or ``None``.
+    """
+
+    metals: dict[str, float] = {}
+    light: dict[str, float | None] = {"H": None, "He": None}
+    for element, abundance in log_number_abundance.items():
+        symbol = str(element).strip().capitalize()
+        if symbol in light:
+            value = float(abundance)
+            if not np.isfinite(value):
+                raise ValueError("log abundances must be finite")
+            light[symbol] = value
+        else:
+            metals[element] = abundance
+    return metals, light["H"], light["He"]
+
+
 def _validate_bulk_abundances(
     log_number_abundance: Mapping[str, float],
     reference_element: str,
@@ -1914,11 +1956,30 @@ def bulk_metal_lte_state(
     ``reference_element`` and the reference itself must be zero dex. The
     optional non-ideal mode uses Q-MHD level survival in both the partition
     functions and the bound-bound lower-level populations.
+
+    ``"H"`` and ``"He"`` entries add atomic hydrogen and helium to the same
+    closure.  Their internal partition functions are the Hummer--Mihalas
+    occupation-probability sums of the DA and DB classes (Q-MHD charged
+    microfields; neutral H and He as hard-sphere perturbers of both) and are
+    iterated with charge neutrality.  The level populations are returned as
+    ``trace_hydrogen_state`` and ``trace_helium_state`` for the hydrogen and
+    helium opacity.  Neutral metal atoms are not counted as hard-sphere
+    perturbers of the H and He levels.
     """
 
-    _, abundances, number_ratio = _validate_bulk_abundances(
-        log_number_abundance, reference_element
+    metal_abundance, log_hydrogen_abundance, log_helium_abundance = (
+        split_bulk_light_abundances(log_number_abundance)
     )
+    _, abundances, number_ratio = _validate_bulk_abundances(
+        metal_abundance, reference_element
+    )
+    hydrogen_ratio = (
+        None if log_hydrogen_abundance is None else 10.0**log_hydrogen_abundance
+    )
+    helium_ratio = (
+        None if log_helium_abundance is None else 10.0**log_helium_abundance
+    )
+    light_elements = hydrogen_ratio is not None or helium_ratio is not None
     temperature = np.asarray(atmosphere.temperature, dtype=np.float64)
     pressure = np.asarray(atmosphere.gas_pressure, dtype=np.float64)
     if temperature.shape != pressure.shape or temperature.ndim != 1:
@@ -1938,8 +1999,47 @@ def bulk_metal_lte_state(
         for ion in stages:
             ideal_partitions[(element, ion.charge)] = ion.partition_function(temperature)
 
-    nuclei_per_reference = sum(number_ratio.values())
+    nuclei_per_reference = (
+        sum(number_ratio.values()) + (hydrogen_ratio or 0.0) + (helium_ratio or 0.0)
+    )
     partitions = dict(ideal_partitions)
+    # H I internal partition function, normalized to the ground-state weight.
+    hydrogen_partition = np.ones_like(temperature)
+    # He I and He II internal partition functions (ground weights 1 and 2) and
+    # the He I low-term occupation probabilities of the last evaluation.
+    helium_neutral_partition = np.ones_like(temperature)
+    helium_ion_partition = np.full_like(temperature, 2.0)
+    helium_low_occupation = np.ones(
+        temperature.shape + (HELIUM_I_LOW_TERM_ENERGY.size,)
+    )
+
+    def hydrogen_ionized_fraction(electron_density: FloatArray) -> FloatArray:
+        log_ratio = (
+            translational_log
+            - np.log(hydrogen_partition)
+            - HYDROGEN_IONIZATION_ENERGY / (BOLTZMANN * temperature)
+            - np.log(electron_density)
+        )
+        return 1.0 / (1.0 + np.exp(-np.clip(log_ratio, -700.0, 700.0)))
+
+    def helium_stage_fractions(electron_density: FloatArray) -> FloatArray:
+        # He I -> He II -> He III Saha ratios; the He III partition is 1.
+        log_one = (
+            np.log(2.0)
+            + translational_log
+            + np.log(helium_ion_partition)
+            - np.log(helium_neutral_partition)
+            - HELIUM_FIRST_IONIZATION_ENERGY / (BOLTZMANN * temperature)
+            - np.log(electron_density)
+        )
+        log_two = (
+            np.log(2.0)
+            + translational_log
+            - np.log(helium_ion_partition)
+            - HELIUM_SECOND_IONIZATION_ENERGY / (BOLTZMANN * temperature)
+            - np.log(electron_density)
+        )
+        return _ion_fractions(np.stack((log_one, log_two)))
 
     def fractions_and_charge(
         electron_density: FloatArray,
@@ -1968,6 +2068,15 @@ def bulk_metal_lte_state(
                 np.arange(fraction.shape[0])[:, np.newaxis] * fraction,
                 axis=0,
             )
+        if hydrogen_ratio is not None:
+            charge_per_reference = charge_per_reference + (
+                hydrogen_ratio * hydrogen_ionized_fraction(electron_density)
+            )
+        if helium_ratio is not None:
+            helium = helium_stage_fractions(electron_density)
+            charge_per_reference = charge_per_reference + helium_ratio * (
+                helium[1] + 2.0 * helium[2]
+            )
         return fractions, charge_per_reference
 
     def solve_charge_neutrality() -> FloatArray:
@@ -1986,45 +2095,120 @@ def bulk_metal_lte_state(
             lower = np.where(positive, lower, middle)
         return np.exp(0.5 * (lower + upper))
 
+    def neutral_light_densities(
+        electron_density: FloatArray, reference_density: FloatArray
+    ) -> tuple[FloatArray, FloatArray]:
+        neutral_hydrogen = (
+            np.zeros_like(temperature) if hydrogen_ratio is None
+            else reference_density * hydrogen_ratio
+            * (1.0 - hydrogen_ionized_fraction(electron_density))
+        )
+        neutral_helium = (
+            np.zeros_like(temperature) if helium_ratio is None
+            else reference_density * helium_ratio
+            * helium_stage_fractions(electron_density)[0]
+        )
+        return neutral_hydrogen, neutral_helium
+
     electron_density = solve_charge_neutrality()
-    if include_nonideal_partitions:
+    if include_nonideal_partitions or light_elements:
         # Partition functions depend on the ionic microfield density moment.
         # A small outer fixed-point iteration avoids recomputing every level
         # sum in all 64 scalar charge-neutrality bisection steps.
-        for _ in range(8):
+        for _ in range(24 if light_elements else 8):
             trial_fractions, trial_charge = fractions_and_charge(
                 electron_density
             )
             trial_reference_density = particle_density / (
                 nuclei_per_reference + trial_charge
             )
-            charged_perturber_density = np.zeros_like(electron_density)
-            for element, fraction in trial_fractions.items():
-                charged_perturber_density += (
-                    trial_reference_density
-                    * number_ratio[element]
-                    * np.sum(
-                        np.arange(fraction.shape[0])[:, np.newaxis] ** 1.5
-                        * fraction,
-                        axis=0,
+            maximum_change = 0.0
+            if include_nonideal_partitions:
+                charged_perturber_density = np.zeros_like(electron_density)
+                for element, fraction in trial_fractions.items():
+                    charged_perturber_density += (
+                        trial_reference_density
+                        * number_ratio[element]
+                        * np.sum(
+                            np.arange(fraction.shape[0])[:, np.newaxis] ** 1.5
+                            * fraction,
+                            axis=0,
+                        )
                     )
-                )
-            updated = {
-                (element, ion.charge): ion.occupation_weighted_partition_function(
-                    temperature, charged_perturber_density
-                )
-                for element, stages in ion_stages.items()
-                for ion in stages
-            }
-            maximum_change = max(
-                float(np.max(np.abs(np.log(
-                    updated[key] / np.maximum(
-                        partitions[key], np.finfo(np.float64).tiny
+                if hydrogen_ratio is not None:
+                    charged_perturber_density += (
+                        trial_reference_density
+                        * hydrogen_ratio
+                        * hydrogen_ionized_fraction(electron_density)
                     )
-                ))))
-                for key in updated
+                if helium_ratio is not None:
+                    helium = helium_stage_fractions(electron_density)
+                    charged_perturber_density += (
+                        trial_reference_density
+                        * helium_ratio
+                        * (helium[1] + 2.0**1.5 * helium[2])
+                    )
+                updated = {
+                    (element, ion.charge): ion.occupation_weighted_partition_function(
+                        temperature, charged_perturber_density
+                    )
+                    for element, stages in ion_stages.items()
+                    for ion in stages
+                }
+                maximum_change = max(
+                    float(np.max(np.abs(np.log(
+                        updated[key] / np.maximum(
+                            partitions[key], np.finfo(np.float64).tiny
+                        )
+                    ))))
+                    for key in updated
+                )
+                partitions = updated
+            trial_neutral_hydrogen, trial_neutral_helium = neutral_light_densities(
+                electron_density, trial_reference_density
             )
-            partitions = updated
+            if hydrogen_ratio is not None:
+                updated_hydrogen = hydrogen_level_distribution(
+                    trial_neutral_hydrogen,
+                    electron_density,
+                    temperature,
+                    neutral_he_density=trial_neutral_helium,
+                    correlated_microfields=True,
+                ).internal_partition_function
+                maximum_change = max(
+                    maximum_change,
+                    float(np.max(np.abs(np.log(
+                        updated_hydrogen / hydrogen_partition
+                    )))),
+                )
+                hydrogen_partition = updated_hydrogen
+            if helium_ratio is not None:
+                (
+                    updated_neutral,
+                    updated_ion,
+                    helium_low_occupation,
+                    _,
+                    _,
+                ) = _helium_partition_functions(
+                    temperature,
+                    electron_density,
+                    trial_neutral_helium,
+                    neutral_h_density=trial_neutral_hydrogen,
+                    maximum_level=HM_MAX_BOUND_LEVEL,
+                    neutral_radius_scale=HM_HELIUM_NEUTRAL_RADIUS_SCALE,
+                    correlated_microfields=True,
+                )
+                maximum_change = max(
+                    maximum_change,
+                    float(np.max(np.abs(np.log(
+                        updated_neutral / helium_neutral_partition
+                    )))),
+                    float(np.max(np.abs(np.log(
+                        updated_ion / helium_ion_partition
+                    )))),
+                )
+                helium_neutral_partition = updated_neutral
+                helium_ion_partition = updated_ion
             electron_density = solve_charge_neutrality()
             if maximum_change < 1.0e-10:
                 break
@@ -2045,10 +2229,78 @@ def bulk_metal_lte_state(
         mass_density += ATOMIC_MASS_U[element] * ATOMIC_MASS_UNIT * density
 
     total_mass = sum(number_ratio[e] * ATOMIC_MASS_U[e] for e in abundances)
+    neutral_hydrogen, neutral_helium = neutral_light_densities(
+        electron_density, reference_density
+    )
+    hydrogen_state = None
+    if hydrogen_ratio is not None:
+        hydrogen_mass_u = HYDROGEN_MASS / ATOMIC_MASS_UNIT
+        total_mass += hydrogen_ratio * hydrogen_mass_u
+        hydrogen_density = reference_density * hydrogen_ratio
+        ionized = hydrogen_ionized_fraction(electron_density)
+        distribution = hydrogen_level_distribution(
+            neutral_hydrogen,
+            electron_density,
+            temperature,
+            neutral_he_density=neutral_helium,
+            correlated_microfields=True,
+        )
+        hydrogen_state = HydrogenLTEState(
+            mass_density=np.asarray(HYDROGEN_MASS * hydrogen_density),
+            hydrogen_nuclei_density=np.asarray(hydrogen_density),
+            neutral_h_density=np.asarray(neutral_hydrogen),
+            proton_density=np.asarray(hydrogen_density * ionized),
+            electron_density=np.asarray(electron_density),
+            ionization_fraction=np.asarray(ionized),
+            internal_partition_function=distribution.internal_partition_function,
+            level_occupation_probability=distribution.occupation_probability,
+            level_population_density=distribution.population_density,
+            microfield_model="qmhd",
+            chemical_model="atomic-hm-in-bulk-metal-mixture",
+        )
+        mass_density += HYDROGEN_MASS * hydrogen_density
+    helium_state = None
+    if helium_ratio is not None:
+        helium_mass_u = HELIUM_MASS / ATOMIC_MASS_UNIT
+        total_mass += helium_ratio * helium_mass_u
+        helium_density = reference_density * helium_ratio
+        stage = helium_stage_fractions(electron_density)
+        low_terms = (
+            HELIUM_I_LOW_TERM_STATISTICAL_WEIGHT
+            * helium_low_occupation
+            * np.exp(
+                -HELIUM_I_LOW_TERM_ENERGY
+                / (BOLTZMANN * temperature[:, np.newaxis])
+            )
+        )
+        helium_state = HeliumLTEState(
+            mass_density=np.asarray(HELIUM_MASS * helium_density),
+            helium_nuclei_density=np.asarray(helium_density),
+            neutral_he_density=np.asarray(neutral_helium),
+            singly_ionized_he_density=np.asarray(helium_density * stage[1]),
+            doubly_ionized_he_density=np.asarray(helium_density * stage[2]),
+            electron_density=np.asarray(electron_density),
+            mean_ion_charge=np.asarray(stage[1] + 2.0 * stage[2]),
+            neutral_partition_function=np.asarray(helium_neutral_partition),
+            singly_ionized_partition_function=np.asarray(helium_ion_partition),
+            neutral_level_occupation_probability=np.asarray(helium_low_occupation),
+            neutral_level_population_density=np.asarray(
+                neutral_helium[:, np.newaxis]
+                * low_terms
+                / helium_neutral_partition[:, np.newaxis]
+            ),
+            microfield_model="qmhd",
+            neutral_radius_scale=HM_HELIUM_NEUTRAL_RADIUS_SCALE,
+        )
+        mass_density += HELIUM_MASS * helium_density
     mass_fraction = {
         element: number_ratio[element] * ATOMIC_MASS_U[element] / total_mass
         for element in abundances
     }
+    if hydrogen_ratio is not None:
+        mass_fraction["H"] = hydrogen_ratio * hydrogen_mass_u / total_mass
+    if helium_ratio is not None:
+        mass_fraction["He"] = helium_ratio * helium_mass_u / total_mass
     return MetalLTEState(
         reference_species="metal",
         log_number_abundance=MappingProxyType(dict(abundances)),
@@ -2059,6 +2311,10 @@ def bulk_metal_lte_state(
         metal_electron_density=np.asarray(electron_density),
         nonideal_ionization=bool(include_nonideal_partitions),
         metal_level_dissolution=bool(include_nonideal_partitions),
+        log_hydrogen_abundance=log_hydrogen_abundance,
+        trace_hydrogen_state=hydrogen_state,
+        log_helium_abundance=log_helium_abundance,
+        trace_helium_state=helium_state,
         composition_mode="bulk",
         mass_fraction=MappingProxyType(mass_fraction),
         total_mass_density=np.asarray(mass_density),
@@ -2075,10 +2331,23 @@ def atmosphere_with_bulk_metal_state(
     if state.reference_species != "metal" or state.total_mass_density is None:
         raise ValueError("a bulk pure-metal LTE state is required")
     zeros = np.zeros_like(atmosphere.temperature)
+    hydrogen = state.trace_hydrogen_state
+    helium = state.trace_helium_state
+    composition = "bulk-metals" + "".join(
+        suffix for present, suffix in (
+            (hydrogen is not None, "-with-hydrogen"),
+            (helium is not None, "-with-helium"),
+        ) if present
+    )
     metadata = dict(atmosphere.metadata)
     metadata.update(
         {
-            "composition": "hydrogen-helium-free-bulk-metals",
+            "composition": (
+                "hydrogen-helium-free-bulk-metals"
+                if composition == "bulk-metals" else composition
+            ),
+            "log_hydrogen_abundance": state.log_hydrogen_abundance,
+            "log_helium_abundance": state.log_helium_abundance,
             "metal_abundances": dict(state.log_number_abundance),
             "mass_fractions": dict(state.mass_fraction or {}),
             "metal_electron_feedback": "fixed-pressure particle and charge closure",
@@ -2088,11 +2357,11 @@ def atmosphere_with_bulk_metal_state(
     return replace(
         atmosphere,
         mass_density=np.asarray(state.total_mass_density),
-        neutral_h_density=zeros,
-        proton_density=zeros,
+        neutral_h_density=zeros if hydrogen is None else hydrogen.neutral_h_density,
+        proton_density=zeros if hydrogen is None else hydrogen.proton_density,
         electron_density=np.asarray(state.electron_density),
-        hydrogen_lte_state=None,
-        helium_lte_state=None,
+        hydrogen_lte_state=hydrogen,
+        helium_lte_state=helium,
         metadata=metadata,
     )
 
@@ -2144,6 +2413,42 @@ def _bulk_metal_specific_enthalpy(
             )
             if ion.ionization_energy_ev is not None:
                 cumulative_ionization_ev += ion.ionization_energy_ev
+    hydrogen = state.trace_hydrogen_state
+    if hydrogen is not None:
+        level = np.arange(
+            1, hydrogen.level_population_density.shape[-1] + 1, dtype=np.float64
+        )
+        internal_energy_density += (
+            hydrogen.proton_density * HYDROGEN_IONIZATION_ENERGY
+            + np.sum(
+                hydrogen.level_population_density
+                * HYDROGEN_IONIZATION_ENERGY * (1.0 - 1.0 / level**2),
+                axis=-1,
+            )
+        )
+    helium = state.trace_helium_state
+    if helium is not None:
+        # Mean excitation energies of the same He I/He II level sums that
+        # define the partition functions of the state.
+        _, _, _, neutral_excitation, ion_excitation = _helium_partition_functions(
+            temperature,
+            np.asarray(helium.electron_density),
+            np.asarray(helium.neutral_he_density),
+            neutral_h_density=(
+                np.zeros_like(temperature) if hydrogen is None
+                else hydrogen.neutral_h_density
+            ),
+            maximum_level=HM_MAX_BOUND_LEVEL,
+            neutral_radius_scale=helium.neutral_radius_scale,
+            correlated_microfields=(helium.microfield_model == "qmhd"),
+        )
+        internal_energy_density += (
+            helium.neutral_he_density * neutral_excitation
+            + helium.singly_ionized_he_density
+            * (HELIUM_FIRST_IONIZATION_ENERGY + ion_excitation)
+            + helium.doubly_ionized_he_density
+            * (HELIUM_FIRST_IONIZATION_ENERGY + HELIUM_SECOND_IONIZATION_ENERGY)
+        )
     density = np.asarray(state.total_mass_density)
     return (
         2.5 * atmosphere.gas_pressure + internal_energy_density
@@ -2265,6 +2570,163 @@ def gray_d6_atmosphere(
     return atmosphere_with_bulk_metal_state(provisional, state)
 
 
+# Offsets (Angstrom) that resolve a Stark-broadened hydrogen line on the
+# structure grid, from the Doppler core to the far wings.
+_HYDROGEN_STRUCTURE_LINE_OFFSETS_ANGSTROM = np.asarray(
+    [0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0]
+)
+
+
+def _bulk_hydrogen_opacity(
+    atmosphere: Atmosphere,
+    wavelength: FloatArray,
+    *,
+    include_lines: bool,
+    quadrature_order: int = 128,
+) -> tuple[FloatArray, FloatArray]:
+    """Return hydrogen true absorption and Rayleigh scattering in a mixture.
+
+    The atmosphere carries the mixture's hydrogen populations, total electron
+    density and total mass density, so the pure-hydrogen opacity routines
+    return cm^2 per gram of mixture: H I bound-free (with the dissolved-level
+    pseudo-continuum), electron-proton free-free, H-minus, and the
+    Stark-broadened Lyman, Balmer, Paschen and Brackett lines.  With helium in
+    the mixture the Balmer lines include neutral-helium impact broadening;
+    ``quadrature_order`` is its Stark--Lorentz convolution order (128 for the
+    spectrum, 32 in the structure, as in the DB class).
+    """
+
+    from .opacity import (
+        balmer_mass_absorption_coefficient,
+        brackett_mass_absorption_coefficient,
+        hydrogen_continuum_mass_absorption_coefficient,
+        hydrogen_dissolved_level_pseudocontinuum_mass_absorption_coefficient,
+        hydrogen_rayleigh_scattering_mass_coefficient,
+        lyman_mass_absorption_coefficient,
+        paschen_mass_absorption_coefficient,
+    )
+
+    absorption = hydrogen_continuum_mass_absorption_coefficient(
+        atmosphere,
+        wavelength,
+        include_electron_scattering=False,
+        include_rayleigh_scattering=False,
+        include_molecular_absorption=False,
+    )
+    absorption = absorption + (
+        hydrogen_dissolved_level_pseudocontinuum_mass_absorption_coefficient(
+            atmosphere, wavelength
+        )
+    )
+    if include_lines:
+        absorption = absorption + balmer_mass_absorption_coefficient(
+            atmosphere,
+            wavelength,
+            include_neutral_helium_broadening=(
+                atmosphere.helium_lte_state is not None
+            ),
+            self_broadening_quadrature_order=quadrature_order,
+        )
+        absorption = absorption + lyman_mass_absorption_coefficient(
+            atmosphere, wavelength
+        )
+        absorption = absorption + paschen_mass_absorption_coefficient(
+            atmosphere, wavelength
+        )
+        absorption = absorption + brackett_mass_absorption_coefficient(
+            atmosphere, wavelength
+        )
+    scattering = hydrogen_rayleigh_scattering_mass_coefficient(atmosphere, wavelength)
+    if np.any(~np.isfinite(absorption)) or np.any(absorption < 0.0):
+        raise ValueError("hydrogen opacity in the bulk mixture is non-finite or negative")
+    return absorption, scattering
+
+
+# Bound-free edges (vacuum Angstrom) of H I (n = 1-3), He I (ground and the
+# four n = 2 terms) and He II (n = 1, 2); the structure grid brackets each.
+_HYDROGEN_STRUCTURE_EDGES_ANGSTROM = (911.75, 3647.05, 8205.7)
+_HELIUM_STRUCTURE_EDGES_ANGSTROM = (
+    504.26, 2600.8, 3121.2, 3421.1, 3679.9, 227.84, 911.34
+)
+
+
+def _bulk_helium_line_opacity(
+    atmosphere: Atmosphere,
+    wavelength: FloatArray,
+    helium_line_tables: tuple[object, object] | None,
+) -> FloatArray:
+    """Return the He I (optical and resonance) and He II line opacity.
+
+    ``helium_line_tables`` are the He I Stark profile table and the He II
+    Stark table of the DB class; every line keeps its occupation-probability
+    survival factor, as in DB.
+    """
+
+    from .helium import (
+        helium_i_line_mass_absorption_coefficient,
+        helium_i_resonance_line_mass_absorption_coefficient,
+        helium_ii_line_mass_absorption_coefficient,
+    )
+
+    if helium_line_tables is None:
+        raise ValueError(
+            "helium lines in a bulk mixture require helium_line_tables "
+            "(He I and He II Stark tables)"
+        )
+    helium_i_table, helium_ii_table = helium_line_tables
+    absorption = helium_i_line_mass_absorption_coefficient(
+        atmosphere, wavelength, helium_i_table,
+        include_occupation_probability=True,
+    )
+    absorption = absorption + helium_i_resonance_line_mass_absorption_coefficient(
+        atmosphere, wavelength, include_occupation_probability=True,
+    )
+    absorption = absorption + helium_ii_line_mass_absorption_coefficient(
+        atmosphere, wavelength, stark_table=helium_ii_table,
+        include_occupation_probability=True,
+    )
+    return absorption
+
+
+def _bulk_helium_opacity(
+    atmosphere: Atmosphere,
+    wavelength: FloatArray,
+    *,
+    include_lines: bool,
+    helium_line_tables: tuple[object, object] | None,
+) -> tuple[FloatArray, FloatArray]:
+    """Return helium true absorption and Rayleigh scattering in a mixture.
+
+    As for hydrogen, the DB routines return cm^2 per gram of mixture: He I
+    bound-free (Opacity Project terms, Rydberg shells and the dissolved-level
+    pseudo-continuum), He II bound-free, He+ and He++ free-free, He-minus
+    free-free (partial-wave shape scaled to John 1994, as in DB), the He2+ and
+    three-body continua and, with ``include_lines``, the lines of
+    :func:`_bulk_helium_line_opacity`.
+    """
+
+    from .helium import (
+        helium_continuum_mass_absorption_coefficient,
+        helium_rayleigh_scattering_mass_coefficient,
+    )
+
+    absorption = helium_continuum_mass_absorption_coefficient(
+        atmosphere,
+        wavelength,
+        include_electron_scattering=False,
+        include_rayleigh_scattering=False,
+        helium_minus_prescription="partial-wave",
+    )
+    if include_lines:
+        absorption = absorption + _bulk_helium_line_opacity(
+            atmosphere, wavelength, helium_line_tables
+        )
+    scattering = helium_rayleigh_scattering_mass_coefficient(atmosphere, wavelength)
+    if np.any(~np.isfinite(absorption)) or np.any(absorption < 0.0):
+        raise ValueError("helium opacity in the bulk mixture is non-finite or negative")
+    return absorption, scattering
+
+
 def _metal_opacity(
     atmosphere: Atmosphere,
     wavelength: FloatArray,
@@ -2297,19 +2759,37 @@ def _metal_opacity(
     profile_edge_optical_depth_ions: Iterable[tuple[str, int]] | None = None,
     profile_support_maximum_rosseland_optical_depth: float = 2.0,
     profile_support_maximum_half_window_angstrom: float = 100.0,
+    metal_lines_only: bool = False,
+    helium_line_tables: tuple[object, object] | None = None,
+    hydrogen_quadrature_order: int = 128,
 ) -> tuple[FloatArray, FloatArray]:
-    absorption = metal_bound_free_mass_absorption_coefficient(
-        atmosphere,
-        wavelength,
-        atomic_database,
-        state,
-        photoionization_database,
-        excluded_ions=(
-            () if topbase_photoionization_database is None
-            else topbase_photoionization_database.ion_stages
-        ),
+    """Return true absorption and scattering of the bulk mixture.
+
+    ``metal_lines_only`` returns the metal bound-bound absorption alone (no
+    continuum, no hydrogen or helium, zero scattering); the magnetic synthesis
+    uses it for the polarization manifolds of a Zeeman-split line database.
+    ``helium_line_tables`` (He I and He II Stark tables) are required for the
+    line opacity of a mixture with helium.
+    """
+
+    if metal_lines_only and not include_lines:
+        raise ValueError("metal_lines_only requires include_lines")
+    absorption = (
+        np.zeros((np.asarray(wavelength).size, atmosphere.n_depth))
+        if metal_lines_only
+        else metal_bound_free_mass_absorption_coefficient(
+            atmosphere,
+            wavelength,
+            atomic_database,
+            state,
+            photoionization_database,
+            excluded_ions=(
+                () if topbase_photoionization_database is None
+                else topbase_photoionization_database.ion_stages
+            ),
+        )
     )
-    if topbase_photoionization_database is not None:
+    if topbase_photoionization_database is not None and not metal_lines_only:
         absorption += topbase_bound_free_mass_absorption_coefficient(
             atmosphere,
             wavelength,
@@ -2352,9 +2832,10 @@ def _metal_opacity(
                 "metal_series_pseudocontinuum_method must be 'topbase' "
                 "or 'line-strength'"
             )
-    absorption += light_metal_free_free_mass_absorption_coefficient(
-        atmosphere, wavelength, state
-    )
+    if not metal_lines_only:
+        absorption += light_metal_free_free_mass_absorption_coefficient(
+            atmosphere, wavelength, state
+        )
     if include_lines:
         absorption += metal_line_mass_absorption_coefficient(
             atmosphere,
@@ -2402,7 +2883,27 @@ def _metal_opacity(
             ),
             transition_keys=line_transition_keys,
         )
+    if metal_lines_only:
+        return absorption, np.zeros_like(absorption)
     scattering = electron_scattering_mass_coefficient(atmosphere)[np.newaxis, :]
+    if state.trace_hydrogen_state is not None:
+        if atmosphere.hydrogen_lte_state is None:
+            raise ValueError("the atmosphere lacks the mixture's hydrogen state")
+        hydrogen_absorption, hydrogen_scattering = _bulk_hydrogen_opacity(
+            atmosphere, wavelength, include_lines=include_lines,
+            quadrature_order=hydrogen_quadrature_order,
+        )
+        absorption = absorption + hydrogen_absorption
+        scattering = scattering + hydrogen_scattering
+    if state.trace_helium_state is not None:
+        if atmosphere.helium_lte_state is None:
+            raise ValueError("the atmosphere lacks the mixture's helium state")
+        helium_absorption, helium_scattering = _bulk_helium_opacity(
+            atmosphere, wavelength, include_lines=include_lines,
+            helium_line_tables=helium_line_tables,
+        )
+        absorption = absorption + helium_absorption
+        scattering = scattering + helium_scattering
     return np.maximum(absorption, np.finfo(np.float64).tiny), scattering
 
 
@@ -2448,7 +2949,7 @@ def _structure_metal_lines(
         }
     return selected_metal_lines(
         atomic_database,
-        abundances,
+        split_bulk_light_abundances(abundances)[0],
         100.0,
         100_000.0,
         minimum_oscillator_strength,
@@ -2492,6 +2993,43 @@ def _structure_wavelength_grid(
             flux_weighted_line_ranking=flux_weighted_line_ranking,
         )
     )
+    _, log_hydrogen, log_helium = split_bulk_light_abundances(abundances)
+    light_centers: list[float] = []
+    light_edges: list[float] = []
+    if log_hydrogen is not None:
+        from .opacity import BALMER_LINES, LYMAN_LINES, PASCHEN_LINES
+
+        light_centers.extend(
+            line.wavelength_vacuum_angstrom
+            for line in (*LYMAN_LINES[:8], *BALMER_LINES[:10], *PASCHEN_LINES[:6])
+        )
+        light_edges.extend(_HYDROGEN_STRUCTURE_EDGES_ANGSTROM)
+    if log_helium is not None:
+        from .helium import (
+            HELIUM_I_LINES,
+            HELIUM_I_RESONANCE_LINES,
+            HELIUM_II_LINES,
+        )
+
+        light_centers.extend(
+            line.wavelength_vacuum_angstrom
+            for line in (*HELIUM_I_LINES, *HELIUM_I_RESONANCE_LINES, *HELIUM_II_LINES)
+        )
+        light_edges.extend(_HELIUM_STRUCTURE_EDGES_ANGSTROM)
+    if light_centers:
+        offsets = np.concatenate((
+            -_HYDROGEN_STRUCTURE_LINE_OFFSETS_ANGSTROM[:0:-1],
+            _HYDROGEN_STRUCTURE_LINE_OFFSETS_ANGSTROM,
+        ))
+        line_grid = (np.asarray(light_centers)[:, np.newaxis] + offsets).ravel()
+        edge_grid = (
+            np.asarray(light_edges)[:, np.newaxis]
+            * np.asarray([1.0 - 1.0e-4, 1.0 + 1.0e-4])
+        ).ravel()
+        light_grid = np.concatenate((line_grid, edge_grid))
+        continuum = np.unique(np.concatenate(
+            (continuum, light_grid[light_grid > 100.0])
+        ))
     if not lines:
         return continuum
     centers = np.asarray([line.wavelength_vacuum_angstrom for _, line in lines])
@@ -2668,6 +3206,7 @@ def d6_structure_opacity_function(
     include_linear_stark_quasistatic: bool = False,
     include_oxygen_i_series_stark: bool = False,
     profile_edge_optical_depth: float | None = None,
+    helium_line_tables: tuple[object, object] | None = None,
 ) -> Callable[[Atmosphere, MetalLTEState], tuple[FloatArray, FloatArray]]:
     """Return the D6 structural absorption/scattering closure."""
 
@@ -2695,6 +3234,9 @@ def d6_structure_opacity_function(
             include_linear_stark_quasistatic=include_linear_stark_quasistatic,
             include_oxygen_i_series_stark=include_oxygen_i_series_stark,
             profile_edge_optical_depth=profile_edge_optical_depth,
+            helium_line_tables=helium_line_tables,
+            # The structure convolution order of the DB class.
+            hydrogen_quadrature_order=32,
         )
 
     return opacity
@@ -2728,6 +3270,7 @@ def radiative_equilibrium_d6_atmosphere(
     include_linear_stark_quasistatic: bool = False,
     include_oxygen_i_series_stark: bool = False,
     profile_edge_optical_depth: float | None = None,
+    helium_line_tables: tuple[object, object] | None = None,
     n_angle: int = 3,
     mixing_length_alpha: float | None = 1.25,
     initial_temperature: ArrayLike | None = None,
@@ -2753,6 +3296,10 @@ def radiative_equilibrium_d6_atmosphere(
     complete warm start on that grid.  ``initial_rosseland_optical_depth`` is
     only a label for depth-dependent diagnostics.  Without them the solver
     starts from :func:`continuum_d6_atmosphere`.
+
+    ``"H"`` and ``"He"`` abundance entries add hydrogen and helium to the
+    mixture (see :func:`bulk_metal_lte_state`); helium lines then require
+    ``helium_line_tables``, the He I and He II Stark tables of the DB class.
     """
 
     if max_iterations < 1:
@@ -2868,6 +3415,7 @@ def radiative_equilibrium_d6_atmosphere(
         include_linear_stark_quasistatic=include_linear_stark_quasistatic,
         include_oxygen_i_series_stark=include_oxygen_i_series_stark,
         profile_edge_optical_depth=profile_edge_optical_depth,
+        helium_line_tables=helium_line_tables,
     )
 
     # One opacity evaluation per distinct temperature.  The nonlinear driver
@@ -2949,7 +3497,9 @@ def radiative_equilibrium_d6_atmosphere(
                 for key, value in seed.metadata.items()
                 if key not in ("model",)
             },
-            "composition": "hydrogen-helium-free-bulk-metals",
+            "composition": seed.metadata.get(
+                "composition", "hydrogen-helium-free-bulk-metals"
+            ),
             "eos": "ideal-multi-element-saha-charge-pressure-closure",
             "reference_element": _canonical_element(reference_element),
             "metal_abundances": dict(log_number_abundance),
@@ -3122,7 +3672,9 @@ def synthesize_d6_spectrum(
             "wavelength_medium": "vacuum",
             "flux_convention": "surface F_lambda",
             "flux_unit": "erg s^-1 cm^-2 Angstrom^-1",
-            "composition": "hydrogen-helium-free-bulk-metals",
+            "composition": atmosphere.metadata.get(
+                "composition", "hydrogen-helium-free-bulk-metals"
+            ),
             "reference_element": _canonical_element(reference_element),
             "metal_abundances": dict(state.log_number_abundance),
             "mass_fractions": dict(state.mass_fraction or {}),

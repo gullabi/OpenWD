@@ -1,4 +1,4 @@
-"""Fresh qualification of released DZ, PG 1159, and D6 models.
+"""Fresh qualification of released DZ, PG 1159, D6 and WarmDQ models.
 
 No stored structure is supplied. PG 1159 retains its explicitly weaker
 spectrum qualification profile; this test must never relabel it converged.
@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from wd_spectra import D6Config, DZConfig, PG1159Config, run_model
+from wd_spectra import D6Config, DZConfig, PG1159Config, WarmDQConfig, run_model
 
 
 @pytest.mark.canary
-@pytest.mark.parametrize("case", ["dz-pg1225", "pg1159-pg1424", "d6-j1637"])
+@pytest.mark.parametrize("case", ["dz-pg1225", "pg1159-pg1424", "d6-j1637", "warm-dq-j1215"])
 def test_released_family_cold_start(case, tmp_path):
     if case == "dz-pg1225":
         # Read stellar parameters and retain production resolution, while
@@ -34,6 +34,11 @@ def test_released_family_cold_start(case, tmp_path):
             mass_fractions={"He": 0.52, "C": 0.45, "O": 0.03},
             refine_upper_atmosphere=True,
         )
+    elif case == "warm-dq-j1215":
+        # The class defaults: WD J1215+4700 at the Kilic et al. (2026) parameters.
+        config = WarmDQConfig()
+        assert (config.effective_temperature, config.logg, config.log_carbon_to_hydrogen) == (
+            13574.0, 8.86, 1.11)
     else:
         config = D6Config()
     run = run_model(config, tmp_path / case, require_convergence=case != "pg1159-pg1424")

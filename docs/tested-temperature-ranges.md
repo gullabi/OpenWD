@@ -111,6 +111,19 @@ Paper range: 10,000–30,000 K. See the [D6 guide](models/D6.md).
 | SDSS J1637+3631: 15680/6.3 | standard | Canary `d6-j1637` |
 | J1235−3752: 18625/7.0 | standard | Cold start |
 
+## Warm DQ
+
+Paper range: 12,600–24,500 K, log g 8.33–9.05. See the
+[warm DQ guide](models/WarmDQ.md#validation).
+
+| Points | Settings | Evidence |
+| --- | --- | --- |
+| C+H: 12603/8.71, 13574/8.86, 14323/8.43, 14655/8.91, 14964/8.92, 15080/8.98, 15193/9.00, 15682/8.92, 16338/9.05, 18315/8.65, 20721/8.82, 21851/8.84, 22353/8.88, 22567/8.81; log C/H −0.01 to 3.00 | standard, convective | Canary `warm-dq-j1215`; cold starts, 1.2–2.3 h; DESI and SDSS comparisons at published parameters |
+| C/He: 14611/8.78 ([C/He] −1.82), 14772/8.87 (+0.30), 16131/8.93 (−0.10), 24483/8.33 (+2.0) | standard, convective | Cold starts, 1.7–2.7 h; SDSS comparisons at published parameters |
+
+Magnetic and radiative (`mixing_length_alpha=None`) atmospheres are not
+among the tested points.
+
 ## DAH
 
 Paper range: 10,500–29,316 K, dipole polar fields 6.13–437.1 MG. See the

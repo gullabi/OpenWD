@@ -41,6 +41,7 @@ from .dq import DQConfig, compute_dq
 from .hot import DOConfig, DAOConfig, compute_do, compute_dao
 from .pg1159 import PG1159Config, compute_pg1159
 from .d6 import D6Config, compute_d6
+from .warm_dq import WarmDQConfig, compute_warm_dq
 from .dah import DAHConfig, compute_dah
 from .sdb import SdBConfig, compute_sdb
 from ..spectrum import Spectrum
@@ -239,6 +240,7 @@ def run_model(
                 DAOConfig: compute_dao,
                 PG1159Config: compute_pg1159,
                 D6Config: compute_d6,
+                WarmDQConfig: compute_warm_dq,
                 DAHConfig: compute_dah,
                 SdBConfig: compute_sdb,
                 DAConfig: compute_da,

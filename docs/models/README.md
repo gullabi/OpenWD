@@ -18,6 +18,7 @@ comparison and its tested range.
 | DAO, hot DA | `DAOConfig` | Hot homogeneous H/He | NLTE H/He | [DO/DAO](DO-DAO.md) |
 | PG 1159 | `PG1159Config` | Hot He/C/O with trace elements | NLTE He/C/O | [PG 1159](PG1159.md) |
 | D6 | `D6Config` | Carbon/oxygen-dominated, no H or He | LTE | [D6](D6.md) |
+| Warm DQ, DAQ, hot DQ | `WarmDQConfig` | Carbon with hydrogen and helium; optional magnetic field | LTE | [Warm DQ](WarmDQ.md) |
 | DAH | `DAHConfig` | Magnetic pure hydrogen | LTE | [DAH](DAH.md) |
 | sdB | `SdBConfig` | Low-gravity H/He; metals with a driver script | LTE structure, NLTE H/He | [sdB](sdB.md) |
 

@@ -450,6 +450,69 @@
           "sha256": "50d18f13a2c9bf5738f4457779f48a8a0a7bfbbb2a3e43e88d20310725ea4358"
         }
       }
+    },
+    {
+      "guides": [
+        "docs/models/WarmDQ.md"
+      ],
+      "in_manuscript": false,
+      "note": "Warm DQ documentation figure (14 C+H stars); not in the manuscript.",
+      "pdf": "warm-dq-paper.pdf",
+      "pdf_sha256": "0028a6932e0991f23625921bc4e641245dceb8cf0a6cf7ef49b8f9159ba15f6e",
+      "plotter_in_repository": {
+        "command": "python research/plot_warm_dq_doc_comparison.py --models MODELS --data DATA --output docs/assets",
+        "inputs": {
+          "models": "research/warm_dq_doc_models.py: 18 cold starts with this repository's WarmDQ code (paper workspace: results/warm-dq-validation-2026-11/paper/runs)",
+          "spectra": "research/warm_dq_doc_data.py: DESI DR1 healpix coadds and SDSS DR17 spectra",
+          "scores": "docs/assets/warm-dq-scores.json (written by the same command)"
+        },
+        "path": "research/plot_warm_dq_doc_comparison.py",
+        "sha256": "a5f0a28a74375732963fb475ec587b58072138332bd661d374c0c6c5893689f1"
+      },
+      "preview": "warm-dq-paper.png",
+      "preview_sha256": "f6409cb6df6dfe859e23e18c1ff64c0fb5e56a24c76e064c8886cc8a68e9d5df"
+    },
+    {
+      "guides": [
+        "docs/models/WarmDQ.md"
+      ],
+      "in_manuscript": false,
+      "note": "Warm DQ documentation figure (carbon lines and H-alpha of six stars); not in the manuscript.",
+      "pdf": "warm-dq-lines.pdf",
+      "pdf_sha256": "fa02dcdd128ed0b5724186842a85865b2f0667607928c19dfa5a351d5f39d0f5",
+      "plotter_in_repository": {
+        "command": "python research/plot_warm_dq_doc_comparison.py --models MODELS --data DATA --output docs/assets",
+        "inputs": {
+          "models": "research/warm_dq_doc_models.py: 18 cold starts with this repository's WarmDQ code (paper workspace: results/warm-dq-validation-2026-11/paper/runs)",
+          "spectra": "research/warm_dq_doc_data.py: DESI DR1 healpix coadds and SDSS DR17 spectra",
+          "scores": "docs/assets/warm-dq-scores.json (written by the same command)"
+        },
+        "path": "research/plot_warm_dq_doc_comparison.py",
+        "sha256": "a5f0a28a74375732963fb475ec587b58072138332bd661d374c0c6c5893689f1"
+      },
+      "preview": "warm-dq-lines.png",
+      "preview_sha256": "6962c31ecd37ebc547ed962148298feb27b832f362bd3e448ab082cd86cc8507"
+    },
+    {
+      "guides": [
+        "docs/models/WarmDQ.md"
+      ],
+      "in_manuscript": false,
+      "note": "Warm DQ documentation figure (C+H against C/He solutions); not in the manuscript.",
+      "pdf": "warm-dq-che.pdf",
+      "pdf_sha256": "a375d9765c73a691bec6e13da5321fdc7397b3fdc7e7784ebb7f169238cd0549",
+      "plotter_in_repository": {
+        "command": "python research/plot_warm_dq_doc_comparison.py --models MODELS --data DATA --output docs/assets",
+        "inputs": {
+          "models": "research/warm_dq_doc_models.py: 18 cold starts with this repository's WarmDQ code (paper workspace: results/warm-dq-validation-2026-11/paper/runs)",
+          "spectra": "research/warm_dq_doc_data.py: DESI DR1 healpix coadds and SDSS DR17 spectra",
+          "scores": "docs/assets/warm-dq-scores.json (written by the same command)"
+        },
+        "path": "research/plot_warm_dq_doc_comparison.py",
+        "sha256": "a5f0a28a74375732963fb475ec587b58072138332bd661d374c0c6c5893689f1"
+      },
+      "preview": "warm-dq-che.png",
+      "preview_sha256": "6aaadf604eda816d9f2e94e730ff47c1727351f381e2d2f8972e65dd0f5626f5"
     }
   ]
 }

@@ -1,0 +1,272 @@
+{
+ "ch_j0146": {
+  "name": "WD J0146-0426",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.2686664063378899,
+  "line_free_chi2_per_pixel": 2.028303342183912,
+  "pixels": 11750,
+  "velocity_kms": 118.4758154803492,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.036365627136959,
+   "C I 5053": 1.3785031683071396,
+   "C I 7115": 2.0257153610414713,
+   "C II 4268": 1.2359867559046605,
+   "Halpha": 1.1195630346368663
+  }
+ },
+ "ch_j1215": {
+  "name": "WD J1215+4700",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 0.9956502935144718,
+  "line_free_chi2_per_pixel": 1.2173646635058073,
+  "pixels": 5872,
+  "velocity_kms": 64.09904309890666,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 0.8826230683955638,
+   "C I 7115": 1.1838039543460597,
+   "C II 4268": null,
+   "Halpha": 1.1846558319353562
+  }
+ },
+ "ch_j0324": {
+  "name": "WD J0324-0135",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.1295505761933406,
+  "line_free_chi2_per_pixel": 1.6152962601701448,
+  "pixels": 5884,
+  "velocity_kms": 166.43897901933417,
+  "equivalent_width_ratio": {
+   "C I 4933": 0.8950627211636063,
+   "C I 5053": null,
+   "C I 7115": null,
+   "C II 4268": null,
+   "Halpha": 1.4065798564519822
+  }
+ },
+ "ch_j1728": {
+  "name": "SDSS J1728+5558",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 2.053533994678985,
+  "line_free_chi2_per_pixel": 9.215011024080496,
+  "pixels": 3289,
+  "velocity_kms": 87.68416530498173,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.0945625792333369,
+   "C I 5053": 1.1707156550916202,
+   "C I 7115": 0.9627216278397862,
+   "C II 4268": 1.6330981641818982,
+   "Halpha": 0.968134871821847
+  }
+ },
+ "ch_j2300": {
+  "name": "WD J2300+0848",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.252393077560112,
+  "line_free_chi2_per_pixel": 2.355422204271291,
+  "pixels": 5832,
+  "velocity_kms": 136.96716558417472,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 1.9249242691264414,
+   "C I 7115": 0.8410727316358477,
+   "C II 4268": null,
+   "Halpha": 0.9479883870136975
+  }
+ },
+ "ch_j1448": {
+  "name": "WD J1448+0519",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.1096109013785593,
+  "line_free_chi2_per_pixel": 1.6118494062952982,
+  "pixels": 5859,
+  "velocity_kms": 75.25668398627319,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.2592006971993774,
+   "C I 5053": 1.070727633925635,
+   "C I 7115": 0.9660261015107292,
+   "C II 4268": 2.050959704959487,
+   "Halpha": 1.023813053264575
+  }
+ },
+ "ch_j1622": {
+  "name": "SDSS J1622+3004",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 1.1132672304892413,
+  "line_free_chi2_per_pixel": 5.882699341048215,
+  "pixels": 3373,
+  "velocity_kms": 55.68612622350195,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.2111520571120107,
+   "C I 5053": 1.259593862580586,
+   "C I 7115": 1.0106683552962423,
+   "C II 4268": 1.1823442042123706,
+   "Halpha": 1.0707282855573366
+  }
+ },
+ "ch_j0117": {
+  "name": "WD J0117+1602",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.097122094182627,
+  "line_free_chi2_per_pixel": 1.7466145654625413,
+  "pixels": 5884,
+  "velocity_kms": 125.19736782511588,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.5419189628881544,
+   "C I 5053": 1.3716288715821319,
+   "C I 7115": 0.9882498688450037,
+   "C II 4268": 1.3799476197266427,
+   "Halpha": 0.9788475128705338
+  }
+ },
+ "ch_j0205": {
+  "name": "G35-26",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.4525130913979578,
+  "line_free_chi2_per_pixel": 4.842622232882051,
+  "pixels": 5886,
+  "velocity_kms": -28.71223422408412,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.2407866257766655,
+   "C I 5053": 1.149423055465299,
+   "C I 7115": 1.1992187664571938,
+   "C II 4268": 1.2819879454901892,
+   "Halpha": 1.0668067573185591
+  }
+ },
+ "ch_j1803": {
+  "name": "WD J1803+2607",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.0437754907563968,
+  "line_free_chi2_per_pixel": 1.297136400121523,
+  "pixels": 5897,
+  "velocity_kms": 37.33731215211518,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 1.0299088943044468,
+   "C I 7115": 1.4488003243674121,
+   "C II 4268": 0.8983688993093742,
+   "Halpha": 0.9940479078641818
+  }
+ },
+ "ch_j0907": {
+  "name": "WD J0907+1749",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.1692323057723586,
+  "line_free_chi2_per_pixel": 1.381202410990117,
+  "pixels": 5898,
+  "velocity_kms": 50.625084612614245,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 1.4799206256046216,
+   "C I 7115": 1.6817477430042913,
+   "C II 4268": 0.9651950938145493,
+   "Halpha": 0.8785527810199627
+  }
+ },
+ "ch_j2302": {
+  "name": "WD J2302+0045",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.441429754747016,
+  "line_free_chi2_per_pixel": 2.9642562058410014,
+  "pixels": 11787,
+  "velocity_kms": 124.69564036519026,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 0.8848411101771542,
+   "C I 7115": 1.1833437325752918,
+   "C II 4268": 1.2107532363360476,
+   "Halpha": 1.425037301286137
+  }
+ },
+ "ch_j0706": {
+  "name": "WD J0706+4833",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 1.4285192696141906,
+  "line_free_chi2_per_pixel": 1.5308705510620872,
+  "pixels": 5868,
+  "velocity_kms": 207.51122122415103,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 1.3950499102252876,
+   "C I 7115": 1.5683837741659328,
+   "C II 4268": 1.4443341748345866,
+   "Halpha": 3.0566816636938627
+  }
+ },
+ "ch_j1104": {
+  "name": "WD J1104+2035",
+  "spectrum": "DESI",
+  "chi2_per_pixel": 4.583414133799667,
+  "line_free_chi2_per_pixel": 8.422787067893575,
+  "pixels": 5884,
+  "velocity_kms": 148.5168452628528,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 2.187770009907762,
+   "C I 7115": 1.5411052307974504,
+   "C II 4268": 1.2516838540699635,
+   "Halpha": 2.098232486881661
+  }
+ },
+ "che_j0236": {
+  "name": "SDSS J0236+2503",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 1.2586772841777825,
+  "line_free_chi2_per_pixel": 1.68091960785518,
+  "pixels": 3219,
+  "velocity_kms": 108.10565046981577,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.1290442580159332,
+   "C I 5053": 1.1498807366092443,
+   "C I 7115": 1.3766268756847726,
+   "C II 4268": 0.959434589458681,
+   "Halpha": 0.5263800992841904
+  }
+ },
+ "che_j1728": {
+  "name": "SDSS J1728+5558",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 3.254059519632713,
+  "line_free_chi2_per_pixel": 9.196140002866239,
+  "pixels": 3289,
+  "velocity_kms": 85.37777865625964,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.1856990034113704,
+   "C I 5053": 1.1689374768727423,
+   "C I 7115": 0.9667230265334058,
+   "C II 4268": 1.824178759075758,
+   "Halpha": 0.3219802576713815
+  }
+ },
+ "che_j1622": {
+  "name": "SDSS J1622+3004",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 2.9404305546523415,
+  "line_free_chi2_per_pixel": 5.887946898892665,
+  "pixels": 3373,
+  "velocity_kms": 49.27810060377974,
+  "equivalent_width_ratio": {
+   "C I 4933": 1.3006449832686304,
+   "C I 5053": 1.1946439578627677,
+   "C I 7115": 0.9884875886245281,
+   "C II 4268": 1.6925908800736738,
+   "Halpha": 0.3131451578172691
+  }
+ },
+ "che_j0818": {
+  "name": "SDSS J0818+0102",
+  "spectrum": "SDSS",
+  "chi2_per_pixel": 2.608093094646701,
+  "line_free_chi2_per_pixel": 3.2758119008557123,
+  "pixels": 3218,
+  "velocity_kms": 150.67589461329982,
+  "equivalent_width_ratio": {
+   "C I 4933": null,
+   "C I 5053": 1.0689003628338611,
+   "C I 7115": 0.9403244209834772,
+   "C II 4268": 1.3251335223781784,
+   "Halpha": 1.1883127861755853
+  }
+ }
+}

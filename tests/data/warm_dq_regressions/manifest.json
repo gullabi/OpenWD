@@ -1,0 +1,198 @@
+{
+ "schema": 1,
+ "scope": "Fixed-structure WarmDQ spectra (tests/test_warm_dq_regression.py); cold convergence is the warm-dq released-family canary.",
+ "capture": {
+  "script": "research/capture_warm_dq_controls.py",
+  "commit": "9e85c8c2587c3d155ee4a918edad1a9f92704017",
+  "uncommitted_source_changes": false,
+  "package_version": "0.1.4",
+  "python": "3.9.16",
+  "numpy": "1.26.4",
+  "platform": "macOS-27.2.1-arm64-arm-64bit"
+ },
+ "structures": {
+  "warm-dq-j1215": {
+   "config": {
+    "effective_temperature": 13574.0,
+    "logg": 8.86,
+    "log_carbon_to_hydrogen": 1.11
+   },
+   "run": "CH_WDJ121510_T13574_g8.86_CH1.11",
+   "cold_start": true,
+   "status": "completed",
+   "atmosphere_convergence_status": "converged",
+   "certificate": {
+    "schema": 1,
+    "scope": "declared equations on the structure grid",
+    "verified": true,
+    "checks": {
+     "all_depth_flux": {
+      "value": 3.056428443670711e-09,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     },
+     "surface_flux": {
+      "value": null,
+      "tolerance": 0.003,
+      "passed": false,
+      "measured": false
+     },
+     "photospheric_flux": {
+      "value": null,
+      "tolerance": 0.003,
+      "passed": false,
+      "measured": false
+     },
+     "local_energy": {
+      "value": 5.417351701601957e-05,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     },
+     "temperature_stationarity": {
+      "value": 6.295055360894253e-05,
+      "tolerance": 0.0003,
+      "passed": true,
+      "measured": true
+     },
+     "source_closure": {
+      "value": 8.671434147053532e-16,
+      "tolerance": 1e-06,
+      "passed": true,
+      "measured": true
+     },
+     "boundary_screening": {
+      "value": 1.0420239541339223e-20,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     }
+    },
+    "required_checks": [
+     "all_depth_flux",
+     "local_energy",
+     "temperature_stationarity",
+     "source_closure",
+     "boundary_screening"
+    ],
+    "failures": [],
+    "independent_grid_validation": false,
+    "full_physics_validation": false
+   },
+   "atmosphere_sha256": "236f4618168d5e15e8c22b79002f610c64e8a55051a8500146129593f15ad673",
+   "temperature_sha256": "71c7cecc4ea29a945a5ea203f17d987f264820ede919a2a0f0d8c6f0f50d5c6f"
+  },
+  "warm-dq-j0236-che": {
+   "config": {
+    "effective_temperature": 14611.0,
+    "logg": 8.777,
+    "log_carbon_to_hydrogen": 2.677,
+    "log_carbon_to_helium": -1.823
+   },
+   "run": "CHe_KK19_0236+2503_T14611_g8.777",
+   "cold_start": true,
+   "status": "completed",
+   "atmosphere_convergence_status": "converged",
+   "certificate": {
+    "schema": 1,
+    "scope": "declared equations on the structure grid",
+    "verified": true,
+    "checks": {
+     "all_depth_flux": {
+      "value": 1.1241119146632172e-10,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     },
+     "surface_flux": {
+      "value": null,
+      "tolerance": 0.003,
+      "passed": false,
+      "measured": false
+     },
+     "photospheric_flux": {
+      "value": null,
+      "tolerance": 0.003,
+      "passed": false,
+      "measured": false
+     },
+     "local_energy": {
+      "value": 5.964494729208483e-05,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     },
+     "temperature_stationarity": {
+      "value": 1.8197861761493073e-05,
+      "tolerance": 0.0003,
+      "passed": true,
+      "measured": true
+     },
+     "source_closure": {
+      "value": 1.3423160794985702e-15,
+      "tolerance": 1e-06,
+      "passed": true,
+      "measured": true
+     },
+     "boundary_screening": {
+      "value": 1.3887665683879057e-08,
+      "tolerance": 0.003,
+      "passed": true,
+      "measured": true
+     }
+    },
+    "required_checks": [
+     "all_depth_flux",
+     "local_energy",
+     "temperature_stationarity",
+     "source_closure",
+     "boundary_screening"
+    ],
+    "failures": [],
+    "independent_grid_validation": false,
+    "full_physics_validation": false
+   },
+   "atmosphere_sha256": "bf441bb61c59f3e0daa3362ceb0a82160723010298fb120824483293aede28ad",
+   "temperature_sha256": "4a0332609083213c493c843eb56f25d2a7e7726120530d1a28d8a71231705900"
+  }
+ },
+ "cases": {
+  "warm-dq-j1215": {
+   "config": {
+    "effective_temperature": 13574.0,
+    "logg": 8.86,
+    "log_carbon_to_hydrogen": 1.11
+   },
+   "structure": "warm-dq-j1215",
+   "pixels": 3707,
+   "sha256": "768b7ea69a007a04787436dcc6ac4b909f02cd9fac19c3bbfb00112005b07464",
+   "synthesis_seconds": 32.8
+  },
+  "warm-dq-j1215-uniform-10mg": {
+   "config": {
+    "effective_temperature": 13574.0,
+    "logg": 8.86,
+    "log_carbon_to_hydrogen": 1.11,
+    "magnetic_field_megagauss": 10.0,
+    "field_geometry": "uniform"
+   },
+   "structure": "warm-dq-j1215",
+   "pixels": 1402,
+   "sha256": "726509438698596bb5bcff637e8216f50b580cec133458af05400f6010980ea6",
+   "synthesis_seconds": 20.6
+  },
+  "warm-dq-j0236-che": {
+   "config": {
+    "effective_temperature": 14611.0,
+    "logg": 8.777,
+    "log_carbon_to_hydrogen": 2.677,
+    "log_carbon_to_helium": -1.823
+   },
+   "structure": "warm-dq-j0236-che",
+   "pixels": 2106,
+   "sha256": "70c59ff3080e5cea54d6ec5253332f628b7a4f0d4087779268697e62f221d3f5",
+   "synthesis_seconds": 22.4
+  }
+ }
+}
