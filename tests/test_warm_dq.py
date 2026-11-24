@@ -566,10 +566,13 @@ def test_c_i_f_series_is_completed_from_the_4f_lines(carbon):
     assert _same_rydberg_core(neutral, half, ls) and _same_rydberg_core(neutral, ls, half)
     assert _same_rydberg_core(neutral, half, half)
     assert not _same_rydberg_core(neutral, half, three_half)
-    # Other classes keep the default (jK levels outside the LS manifold).
+    # D6 uses the same rule for every ion. Without it a jK level stays
+    # outside the LS manifold.
+    from dataclasses import replace
+
     plain, _, _ = _atomic_inputs(ModelData.default(), ("C",))
-    plain_neutral = _stage(plain, 0)
-    assert not plain_neutral.rydberg_jk_levels_join_ls_manifold
+    assert _stage(plain, 0).rydberg_jk_levels_join_ls_manifold
+    plain_neutral = replace(_stage(plain, 0), rydberg_jk_levels_join_ls_manifold=False)
     level_4f = next(l for l in plain_neutral.levels if l.label.endswith(".4f.(1/2[7/2]<4>)"))
     assert linear_stark_rydberg_level(plain, plain_neutral, level_4f) is None
 

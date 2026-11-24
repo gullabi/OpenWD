@@ -104,8 +104,8 @@ spectrum covers 3500–9900 Å in 0.2 Å steps. Give `wavelength=` to
   which Stout writes in jK coupling, join the n-manifold of the LS levels
   of their parent term and of the jK levels of their own parent J (the
   ionic field does not change the core state), so the 2s2p³ ³D°–nf lines
-  are Stark-mixed with nd as well (other classes keep the previous
-  grouping).
+  are Stark-mixed with nd as well. The [D6](D6.md) class uses the same
+  rule for all its ions.
 - **C I 2s2p³ ³D°–nf series.** Stout has the 4f members (5013–5043 Å,
   NIST grade C) but no line to 5f–8f and no nf level built on the C II
   ²P°₁/₂ parent. The missing levels are placed with the quantum defect of

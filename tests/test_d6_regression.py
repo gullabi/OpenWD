@@ -15,7 +15,7 @@ from d6_regression_support import (
     current_config, fixed_spectrum, trajectory,
 )
 
-DIRECTORY = Path(__file__).parent / "data/d6_regressions/warm_v6_si_ii_j_resolved"
+DIRECTORY = Path(__file__).parent / "data/d6_regressions/warm_v7_jk_rydberg_manifold"
 SEED = DIRECTORY.with_name(DIRECTORY.name + "-seed.npz")
 
 
