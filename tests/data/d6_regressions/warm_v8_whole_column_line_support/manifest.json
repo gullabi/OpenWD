@@ -129,10 +129,10 @@
       "microturbulent_velocity_kms": 0.0
     }
   },
-  "reference_commit": "b923ef8201ab886d1ab019f3955ea1eff74bbddc",
-  "physics_revision": "openwd-0.1.3-qmhd-undoubled-v5-flux-conserving:metal-audit-2026-09-30:default-feii-kurucz-uv-2026-10-12:rap-absolute-grid-2026-10-23:normalized-metal-levels-2026-10-24:excited-parent-series-o-i-2026-10-25:jk-rydberg-manifold-2026-11-23",
-  "data_sha256": "c8712ce1d3c0d17a42669ea67f8f6c3e417d7a939689982f4bef07dc62ac7186",
-  "code_sha256": "bce7b74c349de63bf17ad429b39116abafe89c26c4a8b0a2ad2bbeff7a125b7d",
+  "reference_commit": "85ec3d346447a8c54b5e5764b948f40f4d393cbf",
+  "physics_revision": "openwd-0.1.3-qmhd-undoubled-v5-flux-conserving:metal-audit-2026-09-30:default-feii-kurucz-uv-2026-10-12:rap-absolute-grid-2026-10-23:normalized-metal-levels-2026-10-24:excited-parent-series-o-i-2026-10-25:jk-rydberg-manifold-2026-11-23:whole-column-structure-line-support-2026-11-24",
+  "data_sha256": "c4335fad44e78c55d18da7f3e1a19ec2ac22926ec3832ec9d1952e2252c39a1e",
+  "code_sha256": "271912afcd061c93d4f3205f756516d3b67e300e9473646c1fd670485e67477e",
   "python": "3.9.16 | packaged by conda-forge | (main, Feb  1 2023, 21:38:11) \n[Clang 14.0.6 ]",
   "numpy": "1.26.4",
   "platform": "macOS-27.2.1-arm64-arm-64bit",
@@ -143,32 +143,32 @@
     "maximum_log_temperature_correction",
     "scattering_source_maximum_relative_residual"
   ],
-  "output_sha256": "89d397183f0c57e69e64ea91eebd4e3b2387a1d224da398389f094a5ab940167",
+  "output_sha256": "d22c36169e769f4384d514dd2e6981032feaac26217b6e771c12610ac7bbf9e4",
   "seed_sha256": "70574a3c78a74f55e4c6c75c2b4f2b0d16b7d61a1ef398891de93a1aac8cb338",
   "timings_seconds": {
-    "trajectory": 2815.826293792,
-    "fixed_spectrum": 149.222716542
+    "trajectory": 3252.068024583,
+    "fixed_spectrum": 148.347360583
   },
   "independent_kurucz_manifest_sha256": "f0efa3b6012e25c4888722a154455e519e9a4857575e583e70004739b112226e",
   "archived_reference": {
-    "name": "warm_v6_si_ii_j_resolved",
-    "manifest_sha256": "6081e58683218d2e44e00278ffe6442a8fcc61188818bd50c89645c3707c2ee9",
-    "output_sha256": "9226cd41810313fbd7810a8a808e7ef654136d8f459b4298e9ac3de8cc23c6ff",
+    "name": "warm_v7_jk_rydberg_manifold",
+    "manifest_sha256": "84e8f00ae1da9284b33247c78f1060f61901894a33fad3e7cf325c8c367ecdde",
+    "output_sha256": "89d397183f0c57e69e64ea91eebd4e3b2387a1d224da398389f094a5ab940167",
     "seed_sha256": "70574a3c78a74f55e4c6c75c2b4f2b0d16b7d61a1ef398891de93a1aac8cb338",
-    "reference_commit": "5f074d32b4abf8cf8b88d67fdac90b88c82644ca"
+    "reference_commit": "b923ef8201ab886d1ab019f3955ea1eff74bbddc"
   },
   "difference_from_previous": {
     "profiles": {
       "temperature": {
-        "maximum_absolute": 4.156043963264892,
-        "maximum_relative": 0.00037896219071409387,
+        "maximum_absolute": 436.74714733516885,
+        "maximum_relative": 0.008650492560895229,
         "maximum_relative_by_step": [
-          0.0003649021088472093,
-          0.00037896219071409387
+          0.008591091082732483,
+          0.008650492560895229
         ],
         "maximum_relative_location": [
           1,
-          22
+          47
         ]
       },
       "gas_pressure": {
@@ -184,27 +184,27 @@
         ]
       },
       "mass_density": {
-        "maximum_absolute": 1.662746842954164e-11,
-        "maximum_relative": 0.0008365496449556087,
+        "maximum_absolute": 4.3241647630255035e-08,
+        "maximum_relative": 0.01602405429952891,
         "maximum_relative_by_step": [
-          0.0008061301815684985,
-          0.0008365496449556087
+          0.0159163425130886,
+          0.01602405429952891
         ],
         "maximum_relative_location": [
           1,
-          22
+          47
         ]
       },
       "electron_density": {
-        "maximum_absolute": 122482858698.75,
-        "maximum_relative": 0.00019094698305455182,
+        "maximum_absolute": 1476387961922016.0,
+        "maximum_relative": 0.005514391341038927,
         "maximum_relative_by_step": [
-          0.00018604295684232497,
-          0.00019094698305455182
+          0.0054767802254529485,
+          0.005514391341038927
         ],
         "maximum_relative_location": [
           1,
-          22
+          47
         ]
       }
     },
@@ -216,20 +216,6 @@
     ],
     "previous_metrics": [
       [
-        0.0012645434108264908,
-        3.0894777190771076e-05,
-        0.014385842718521502,
-        1.7621454356170928e-15
-      ],
-      [
-        2.9678490671702917e-06,
-        1.3104098545365593e-07,
-        0.0004580059107901491,
-        1.5799815049628857e-15
-      ]
-    ],
-    "current_metrics": [
-      [
         0.001264504198535743,
         3.22398343547893e-05,
         0.01432646302471241,
@@ -240,6 +226,20 @@
         1.3774090487686242e-07,
         0.00046472894644722373,
         1.7288030416551375e-15
+      ]
+    ],
+    "current_metrics": [
+      [
+        0.0010254303342975835,
+        3.0260291905491737e-05,
+        0.01417314611997611,
+        1.6800913870173353e-15
+      ],
+      [
+        1.1280841440974854e-06,
+        1.3871639970330382e-07,
+        0.00046210205617391864,
+        1.633149015733724e-15
       ]
     ]
   }

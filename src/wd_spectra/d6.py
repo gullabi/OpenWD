@@ -3206,6 +3206,7 @@ def d6_structure_opacity_function(
     include_linear_stark_quasistatic: bool = False,
     include_oxygen_i_series_stark: bool = False,
     profile_edge_optical_depth: float | None = None,
+    profile_support_maximum_rosseland_optical_depth: float = float("inf"),
     helium_line_tables: tuple[object, object] | None = None,
 ) -> Callable[[Atmosphere, MetalLTEState], tuple[FloatArray, FloatArray]]:
     """Return the D6 structural absorption/scattering closure."""
@@ -3234,6 +3235,9 @@ def d6_structure_opacity_function(
             include_linear_stark_quasistatic=include_linear_stark_quasistatic,
             include_oxygen_i_series_stark=include_oxygen_i_series_stark,
             profile_edge_optical_depth=profile_edge_optical_depth,
+            profile_support_maximum_rosseland_optical_depth=(
+                profile_support_maximum_rosseland_optical_depth
+            ),
             helium_line_tables=helium_line_tables,
             # The structure convolution order of the DB class.
             hydrogen_quadrature_order=32,
@@ -3270,6 +3274,7 @@ def radiative_equilibrium_d6_atmosphere(
     include_linear_stark_quasistatic: bool = False,
     include_oxygen_i_series_stark: bool = False,
     profile_edge_optical_depth: float | None = None,
+    profile_support_maximum_rosseland_optical_depth: float = float("inf"),
     helium_line_tables: tuple[object, object] | None = None,
     n_angle: int = 3,
     mixing_length_alpha: float | None = 1.25,
@@ -3300,6 +3305,20 @@ def radiative_equilibrium_d6_atmosphere(
     ``"H"`` and ``"He"`` abundance entries add hydrogen and helium to the
     mixture (see :func:`bulk_metal_lte_state`); helium lines then require
     ``helium_line_tables``, the He I and He II Stark tables of the DB class.
+
+    ``profile_support_maximum_rosseland_optical_depth`` bounds the layers in
+    which ``profile_edge_optical_depth`` requires the omitted line wings to
+    be thin (:func:`wd_spectra.metals.
+    optically_thick_line_minimum_half_window_angstrom`).  The structure uses
+    the opacity of every layer, so the default (``inf``) covers the whole
+    column.  With the photospheric limit of the emergent spectrum (Rosseland
+    depth 2), a line of a high ion that is weak in the photosphere and strong
+    in the hot interior (for example C III 1175.7 A in a carbon atmosphere)
+    keeps a few-angstrom support that ends at several times the deep
+    Rosseland opacity.  That support doubles when the photospheric edge
+    depth crosses its threshold, which can happen inside the solver's
+    temperature probe: the deep opacity then jumps by a factor 2-5 and the
+    deep rows of the analytic Jacobian take the wrong sign.
     """
 
     if max_iterations < 1:
@@ -3415,6 +3434,9 @@ def radiative_equilibrium_d6_atmosphere(
         include_linear_stark_quasistatic=include_linear_stark_quasistatic,
         include_oxygen_i_series_stark=include_oxygen_i_series_stark,
         profile_edge_optical_depth=profile_edge_optical_depth,
+        profile_support_maximum_rosseland_optical_depth=(
+            profile_support_maximum_rosseland_optical_depth
+        ),
         helium_line_tables=helium_line_tables,
     )
 
@@ -3526,6 +3548,11 @@ def radiative_equilibrium_d6_atmosphere(
             ),
             "oxygen_i_series_stark_in_structure": bool(include_oxygen_i_series_stark),
             "line_profile_edge_optical_depth": profile_edge_optical_depth,
+            "line_profile_support_maximum_rosseland_optical_depth": (
+                None
+                if np.isinf(profile_support_maximum_rosseland_optical_depth)
+                else float(profile_support_maximum_rosseland_optical_depth)
+            ),
             "level_resolved_metal_bound_free": (
                 topbase_photoionization_database.source
                 if topbase_photoionization_database is not None

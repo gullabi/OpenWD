@@ -123,7 +123,12 @@ spectrum covers 3500–9900 Å in 0.2 Å steps. Give `wavelength=` to
   Beauchamp et al. Stark profiles, the He I resonance series and the He II
   lines. Neutral helium also broadens the carbon lines (van der Waals).
 - **Structure.** The shared adaptive Newton solver relaxes the atmosphere and
-  checks all-depth flux and local energy balance.
+  checks all-depth flux and local energy balance. As in D6, a structure
+  line's profile extends until its omitted wing is optically thin through the
+  whole column. A shorter profile can end where a line of a high ion, weak in
+  the photosphere, is still strong in the hot interior (for example C III
+  1175.7 Å); its length then jumps within the solver's temperature step and
+  the solve stalls.
 - **Magnetic field.** The field changes only the line opacity of the emergent
   spectrum. The structure, the level populations and the continuum are
   nonmagnetic.
@@ -298,8 +303,12 @@ The models take 1.2–2.7 hours each on one core. The data script needs
   and the Kurucz value is twenty times larger.
 - The observed 4430–4540 Å band extends about 30 Å further to the red
   than the modelled 2s2p³ ³D°–5f band.
-- The C I 4269 Å oscillator strength is uncertain by a factor of four
-  (Koester & Kepler 2019). The NIST value has grade E and is not used.
+- The C I 4269 Å line (vacuum 4270.2 Å) blends with C II 4267 Å. It
+  supplies 90% of that feature at 12,600 K and 20–30% at 15,000 K. Its
+  oscillator strength is that of Li et al. (2021), log gf = −2.07, within
+  0.14 dex of the Stout and Victor & Escalante values; the NIST (grade E)
+  and VALD values are 0.4–0.6 dex larger (Koester & Kepler 2019). Its Stark
+  width is the nearest-level estimate and its Stark shift is not included.
 
 See [limitations](../limitations.md) for the shared caveats.
 

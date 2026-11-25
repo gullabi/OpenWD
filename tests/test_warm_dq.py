@@ -663,3 +663,59 @@ def test_radiative_cold_start_continues_from_the_convective_structure(monkeypatc
     calls.clear()
     module.compute_warm_dq(WarmDQConfig(), wavelength)
     assert calls == [(1.25, False)]
+
+
+def _deep_line_support(scale_factor, maximum_rosseland_optical_depth):
+    """Support of a line that is thin in the photosphere and strong below it."""
+
+    from wd_spectra.metals import optically_thick_line_minimum_half_window_angstrom
+
+    n = 12
+    tau = np.geomspace(1.0e-3, 1.0e2, n)
+    atmosphere = Atmosphere(
+        20_000.0, 9.0, tau, np.geomspace(1.0e-6, 1.0e-1, n),
+        np.geomspace(1.2e4, 5.5e4, n), np.geomspace(1.0e2, 1.0e7, n),
+        np.ones(n), np.zeros(n), np.zeros(n), np.ones(n), {},
+    )
+    # Lower-level number per gram: rises by twelve orders of magnitude inward.
+    population = scale_factor * 1.0e20 * (tau / tau[-1]) ** 2.5
+    # Integrated strength (pi e^2 / m c) f of a line with f = 0.1.
+    return optically_thick_line_minimum_half_window_angstrom(
+        atmosphere, 1175.7, 2.654e-3, np.full(n, 0.01), np.full(n, 0.02), population,
+        maximum_rosseland_optical_depth=maximum_rosseland_optical_depth,
+        edge_optical_depth=1.0e-3, maximum_half_window_angstrom=100.0,
+    )
+
+
+def test_whole_column_line_support_is_wide_and_does_not_jump():
+    factors = np.geomspace(1.0, 1.0e4, 41)
+    photospheric = np.array([_deep_line_support(factor, 2.0) for factor in factors])
+    whole_column = np.array([_deep_line_support(factor, np.inf) for factor in factors])
+    # With the spectrum-forming limit the support doubles somewhere in a
+    # range of line strengths: a discontinuous opacity for the deep layers.
+    assert np.any(photospheric[1:] >= 1.99 * photospheric[:-1])
+    # Through the whole column the deep wing is never thin: every strength
+    # takes the same, maximum support.
+    assert np.all(whole_column == 100.0)
+    assert np.all(whole_column >= photospheric)
+    with pytest.raises(ValueError):
+        _deep_line_support(1.0, np.nan)
+
+
+def test_structure_requires_thin_line_wings_through_the_whole_column():
+    import inspect
+
+    from wd_spectra.d6 import d6_structure_opacity_function, radiative_equilibrium_d6_atmosphere
+    from wd_spectra.metals import metal_line_mass_absorption_coefficient
+
+    # The structure (D6 and WarmDQ) requires thin wings in every layer; the
+    # emergent spectrum keeps the photospheric limit.
+    for function in (radiative_equilibrium_d6_atmosphere, d6_structure_opacity_function):
+        parameter = inspect.signature(function).parameters[
+            "profile_support_maximum_rosseland_optical_depth"
+        ]
+        assert parameter.default == np.inf
+    spectrum = inspect.signature(metal_line_mass_absorption_coefficient).parameters[
+        "profile_support_maximum_rosseland_optical_depth"
+    ]
+    assert spectrum.default == 2.0

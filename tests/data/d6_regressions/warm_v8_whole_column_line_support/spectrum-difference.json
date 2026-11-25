@@ -1,0 +1,86 @@
+{
+  "maximum_relative_difference": 0.0,
+  "integrated_flux_change": 0.0,
+  "strongest_changes": [
+    {
+      "wavelength_A": 7699.999999996089,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.899999998695,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.6999999986965,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.599999998696,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.499999998696,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.399999998696,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.299999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.1999999986965,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.099999998696,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.999999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.899999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.799999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.6999999986965,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.599999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.499999998698,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.399999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.299999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.199999998697,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4832.099999998698,
+      "relative_change": 0.0
+    },
+    {
+      "wavelength_A": 4833.799999998696,
+      "relative_change": 0.0
+    }
+  ]
+}

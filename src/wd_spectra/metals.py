@@ -6868,6 +6868,14 @@ def optically_thick_line_minimum_half_window_angstrom(
     This criterion controls the transfer error rather than the omitted
     normalized profile area.  It is intentionally independent of element or
     wavelength so the same physics can be used by every atmosphere class.
+
+    ``maximum_rosseland_optical_depth`` limits the layers of the integral; the
+    default covers the layers that form the emergent spectrum.  A structure
+    solve also uses the opacity of the deeper layers, where a line of a high
+    ion can be strong although it is thin above.  With the default limit its
+    support then ends where its opacity still exceeds the continuum there,
+    and the support doubles discontinuously when the photospheric edge depth
+    crosses the threshold.  ``inf`` integrates through the whole column.
     """
 
     sigma = np.asarray(gaussian_sigma_angstrom, dtype=np.float64)
@@ -6882,7 +6890,7 @@ def optically_thick_line_minimum_half_window_angstrom(
         or not np.isfinite(integrated_strength) or integrated_strength < 0.0
         or not np.isfinite(initial_half_window_angstrom)
         or initial_half_window_angstrom < 0.0
-        or not np.isfinite(maximum_rosseland_optical_depth)
+        or np.isnan(maximum_rosseland_optical_depth)
         or maximum_rosseland_optical_depth <= 0.0
         or not np.isfinite(edge_optical_depth) or edge_optical_depth <= 0.0
         or not np.isfinite(maximum_half_window_angstrom)
@@ -9590,7 +9598,7 @@ def metal_line_mass_absorption_coefficient(
     ):
         raise ValueError("profile-edge ion charges must be non-negative")
     if (
-        not np.isfinite(profile_support_maximum_rosseland_optical_depth)
+        np.isnan(profile_support_maximum_rosseland_optical_depth)
         or profile_support_maximum_rosseland_optical_depth <= 0.0
         or not np.isfinite(profile_support_maximum_half_window_angstrom)
         or profile_support_maximum_half_window_angstrom <= 0.0

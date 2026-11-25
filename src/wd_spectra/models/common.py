@@ -49,7 +49,7 @@ _MODEL_FAMILY_PHYSICS_REVISIONS = {
     # structure line identity and continuous dense-He ionization.
     "DZ": "metal-audit-2026-09-30:hydrogen-stark-density-floor-2026-10-05:default-crii-kurucz-2026-10-08:kurucz-electron-stark-2026-10-11:si-ii-he-unified-2026-10-11:si-ii-kurucz-transitions-2026-10-12:metal-microfield-hosts-2026-10-12:default-feii-kurucz-uv-2026-10-12:neutral-trace-h-metal-widths-2026-10-12:cool-dz-release-2026-10-23:rap-absolute-grid-2026-10-23:normalized-metal-levels-2026-10-24:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:nist-asd-strong-lines-2026-11-02:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10:heh-plus-kirchhoff-caii-crd-2026-11-18",
     "DAZ": "metal-audit-2026-09-30:hydrogen-stark-density-floor-2026-10-05:default-crii-kurucz-2026-10-08:kurucz-electron-stark-2026-10-11:barklem-neutral-h-2026-10-12:si-ii-kurucz-transitions-2026-10-12:default-feii-kurucz-uv-2026-10-12:normalized-metal-levels-2026-10-24:montreal-h-radius-ali-griem-2026-10-27:hydrogen-full-dissolution-2026-10-27:nist-asd-strong-lines-2026-11-02:cool-h-h3plus-spin-ks06-h2opacity-2026-11-10:kirchhoff-caii-crd-2026-11-18",
-    "D6": "metal-audit-2026-09-30:default-feii-kurucz-uv-2026-10-12:rap-absolute-grid-2026-10-23:normalized-metal-levels-2026-10-24:excited-parent-series-o-i-2026-10-25:jk-rydberg-manifold-2026-11-23",
+    "D6": "metal-audit-2026-09-30:default-feii-kurucz-uv-2026-10-12:rap-absolute-grid-2026-10-23:normalized-metal-levels-2026-10-24:excited-parent-series-o-i-2026-10-25:jk-rydberg-manifold-2026-11-23:whole-column-structure-line-support-2026-11-24",
 }
 
 
