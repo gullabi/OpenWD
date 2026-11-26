@@ -11,7 +11,9 @@ deeper than a threshold is matched to the lines within 0.3 A (Stout lines of the
 model's metals, the heavy-element lines of sdb_heavy_lines.py, and a short He list).
 Candidates are ranked by an LTE line-opacity estimate, n_ion g f exp(-E_l/kT)/U, at
 Rosseland optical depth 0.3 of the model's own structure.  A second line within
-30% of the strongest joins the label.  Labels give air wavelengths.
+30% of the strongest joins the label.  Labels give air wavelengths.  For HD 4539 the
+model at 25,200 K (sdb_paper_models.sh target hd4539-hot), the Teff that fits its
+Si II/Si III balance, is drawn as well; labels follow the published-Teff model.
 """
 from __future__ import annotations
 
@@ -38,7 +40,9 @@ from wd_spectra.metals import read_pg1159_atomic_database  # noqa: E402
 from wd_spectra.models.common import ModelData  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-OBSERVED, MODEL = '.30', '#d95f02'
+OBSERVED, MODEL, HOT = '.30', '#d95f02', '#2a78d6'
+# Model at our best-fit Teff (the Si II/Si III balance; sdB guide), where one exists.
+HOT_MODELS = {'hd4539': ('hd4539-hot', 25200)}
 TICK_SIZE, LABEL_SIZE, LINE_LABEL_SIZE = 8, 9, 6.3
 WINDOWS = ((4192.0, 4300.0), (4995.0, 5100.0))   # air A, covered by both spectrographs
 STARS = ('hd4539', 'lsiv14116')
@@ -195,13 +199,21 @@ def main():
             lines, temperature = candidate_lines(key, prepared['summary'], data)
             cache[key] = (prepared, lines, components(prepared['summary'], prepared['target']))
             record[key] = dict(line_forming_temperature=temperature, labels={})
-        prepared, lines, (air, ratio, host_flux) = cache[key]
+            hot = None
+            if key in HOT_MODELS and (args.models / f'{HOT_MODELS[key][0]}-metals' / 'run-summary.json').exists():
+                hot = paper.prepare(key, args.models, normalize, model_dir=args.models / f'{HOT_MODELS[key][0]}-metals')
+            cache[key] = cache[key] + (hot,)
+        prepared, lines, (air, ratio, host_flux), hot = cache[key]
         target, summary = prepared['target'], prepared['summary']
         wave_air = vacuum_to_air(prepared['wave'])
         inside = (wave_air >= lo) & (wave_air <= hi)
         w, obs, mod = wave_air[inside], prepared['observed'][inside], prepared['model'][inside]
         ax.plot(w, obs, color=OBSERVED, lw=.6)
         ax.plot(w, mod, color=MODEL, lw=.8)
+        if hot is not None:
+            hot_model = hot['model'][inside]
+            ax.plot(w, hot_model, color=HOT, lw=.8)
+            mod = np.fmin(mod, hot_model)   # y-range covers both models
         labels = identify(air, ratio, host_flux, lo, hi, lines, target['velocity'], MINIMUM_DEPTH[key])
         record[key]['labels'][f'{lo:.0f}-{hi:.0f}'] = labels
         # Data in the lower half (continuum at mid-height), labels above.
@@ -222,12 +234,16 @@ def main():
                     transform=ax.get_xaxis_transform())
         ax.tick_params(labelsize=TICK_SIZE)
         host = summary['host']
-        ax.set_title(f'{target["name"]} ({target["instrument"]}; {host["teff"]:,.0f} K, log g {host["logg"]:.2f})',
+        temperatures = f'{host["teff"]:,.0f} K' + (f' and {HOT_MODELS[key][1]:,} K' if hot is not None else '')
+        ax.set_title(f'{target["name"]} ({target["instrument"]}; {temperatures}, log g {host["logg"]:.2f})',
                      fontsize=LABEL_SIZE, loc='left', pad=3)
         ax.set_ylabel('Normalized flux', fontsize=TICK_SIZE)
     axes[-1].set_xlabel(r'Air wavelength ($\mathrm{\AA}$)', fontsize=LABEL_SIZE)
-    handles = [Line2D([], [], color=OBSERVED, lw=.9, label='Observed'), Line2D([], [], color=MODEL, lw=1.0, label='OpenWD')]
-    fig.legend(handles=handles, loc='upper right', ncol=2, frameon=False, fontsize=TICK_SIZE, bbox_to_anchor=(.985, 1.0))
+    handles = [Line2D([], [], color=OBSERVED, lw=.9, label='Observed'),
+               Line2D([], [], color=MODEL, lw=1.0, label='OpenWD, published $T_\\mathrm{eff}$')]
+    if any(entry[-1] is not None for entry in cache.values()):
+        handles.append(Line2D([], [], color=HOT, lw=1.0, label='OpenWD, Si II/Si III $T_\\mathrm{eff}$ (HD 4539: 25,200 K)'))
+    fig.legend(handles=handles, loc='upper right', ncol=3, frameon=False, fontsize=TICK_SIZE, bbox_to_anchor=(.985, 1.0))
     fig.tight_layout(rect=(0, 0, 1, .985), h_pad=.9)
     fig.savefig(args.output / 'sdb-zoom-lines.pdf')
     fig.savefig(args.output / 'sdb-zoom-lines.png', dpi=220)

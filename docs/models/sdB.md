@@ -152,8 +152,10 @@ marks telluric bands. "IS" marks interstellar Ca II and Na D.
 [![Two 100 Å windows of HD 4539 and LS IV−14°116 with labelled metal lines](../assets/sdb-zoom-lines.png)](../assets/sdb-zoom-lines.pdf)
 
 Two windows of about 100 Å with the same models and normalization as the
-figure above, in air wavelengths. Each label names the model feature it
-points to. `research/plot_sdb_zoom_lines.py` matches each absorption of the
+figure above, in air wavelengths. For HD 4539, the blue line is the same
+model at 25,200 K, the Teff that fits its Si II/Si III balance (see
+[Silicon ionization](#silicon-ionization)). Each label names the feature of
+the published-Teff model it points to. `research/plot_sdb_zoom_lines.py` matches each absorption of the
 model to the lines within 0.3 Å and names the strongest one by an LTE opacity
 estimate at Rosseland optical depth 0.3 of the star's structure. A second
 species of similar strength is named as a blend.
@@ -163,9 +165,11 @@ species of similar strength is named as a blend.
   observed depths to within about 10%. C II 4267 Å is too weak (core depth
   0.13 against 0.20).
 - HD 4539, at the published Teff: the N II lines are 1.5–2 times and
-  S III 4253 Å about 2.5 times too shallow, and Ar II 4278 Å is too deep. N II
-  and S III move toward the data at 25,200 K (see
-  [Silicon ionization](#silicon-ionization)).
+  S III 4253 Å about 2.5 times too shallow, and Ar II 4278 Å is twice too
+  deep. At 25,200 K the N II lines reach 80–100% of the observed depths
+  (N II 5045 Å about 65%), close to the ±0.16 dex error of the N abundance,
+  and Si II 4128 Å matches. NLTE is not the cause of the weak N II lines: it
+  deepens them by 5–10% relative to LTE.
 
 ### Silicon ionization
 
