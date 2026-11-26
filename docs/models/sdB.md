@@ -60,12 +60,17 @@ metadata records each stage's line strength, work, and residual in
 
 ## Add trace metals
 
-The metal driver needs the two research-driver stages as input. Run these
-commands from the repository root, with one thread:
+The metal driver needs the two research-driver stages as input. The LTE
+stage takes every metal of the model, so that metal opacity enters the
+structure (metal blanketing). Run these commands from the repository root,
+with one thread:
 
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 python research/sdb_lte_hhe.py --teff 23200 --logg 5.20 --log-he-h -2.27 \
+    --abundance C=-4.06 --abundance N=-4.10 --abundance O=-4.97 \
+    --abundance Si=-5.30 --abundance S=-5.17 --abundance Mg=-5.40 \
+    --abundance Al=-6.40 --abundance Ar=-4.83 --abundance Fe=-4.62 \
     --output results/sdb/hd4539-lte
 python research/sdb_hybrid_nlte.py results/sdb/hd4539-lte \
     --hydrogen-levels 16 --accelerated-lambda \
@@ -80,7 +85,12 @@ python research/sdb_trace_metals.py results/sdb/hd4539-lte results/sdb/hd4539-hy
 ```
 
 - Abundances are log10 N(X)/N(H). `--log-he-h` is log10 N(He)/N(H).
-- `--abundance` solves an element in NLTE. C, N, O, Si and S are available.
+- `sdb_lte_hhe.py --abundance` adds the metals to the LTE structure. This does
+  not make the model slower. It heats the line-forming layers by 1–2% and
+  lowers the Si II/Si III line ratio by a factor of 1.2–1.3. The metal driver
+  stops if the structure has no metals; `--metal-free-structure` allows it.
+- `sdb_trace_metals.py --abundance` solves an element in NLTE. C, N, O, Si and
+  S are available.
 - `--lte-abundance` adds an element as LTE line opacity.
 - `--heavy-abundance` adds elements heavier than Zn (for example Ge, Sr, Y,
   Zr, Sn) as LTE line opacity.
@@ -94,8 +104,9 @@ stage) and `converged` (metal stage) in each summary.
 
 ## Physics
 
-- **Structure.** The LTE H/He atmosphere comes from the [DAB](DAB.md) module.
-  It contains no metals.
+- **Structure.** The LTE atmosphere comes from the [DAB](DAB.md) module. In the
+  metal recipe it includes the metals (opacity-sampled lines, bound-free edges
+  and their electrons). `run_model` with `SdBConfig` has no metals.
 - **NLTE H/He.** The populations use the [DO/DAO](DO-DAO.md) model atoms,
   extended to 16 explicit H I levels, on the fixed temperature and pressure
   structure. The electron density comes from the LTE H/He EOS. Line rates are
@@ -130,10 +141,66 @@ telluric bands. "IS" marks interstellar Ca II and Na D. HD 4539 shows no
 systematic difference from the data. For LS IV−14°116, the model cores of
 Hγ and Hδ are shallower than observed.
 
+### Silicon ionization
+
+[![Si II and Si III lines of HD 4539 and Feige 38 compared with OpenWD models at the published and higher Teff](../assets/sdb-silicon.png)](../assets/sdb-silicon.pdf)
+
+Si II 4128/4131 Å and Si III 4552–4575 Å in HD 4539 (top) and Feige 38
+(bottom). X-shooter spectra are gray. All models use the published log g,
+He/H and abundances (Geier 2013), metals in the LTE structure
+(`sdb_lte_hhe.py --abundance`) and the full metal mixture. Orange: the
+published Teff (Schneider et al. 2018). Blue: 2000 K (HD 4539) and 1000 K
+(Feige 38) hotter. The right panels show the equivalent-width ratio
+Si II 4128 Å / Si III 4552 Å against Teff; the gray line is the observed
+ratio.
+
+- At the published Teff, the models give too much Si II relative to Si III.
+  The 4128/4552 ratio is 0.36 against 0.11 observed (HD 4539) and 0.21
+  against 0.15 (Feige 38).
+- TLUSTY/SYNSPEC gives the same silicon lines (last figure), so the
+  discrepancy is not specific to OpenWD.
+- A Teff 1000–2000 K higher brings Si II/Si III into agreement. The OpenWD
+  Balmer lines fit as well or better at these temperatures: HD 4539 fits best
+  at +1000 K, Feige 38 at +2000 to +3000 K.
+
+[![Metal lines of HD 4539 compared with OpenWD models at 23,200 K and 25,200 K](../assets/sdb-metals-hd4539.png)](../assets/sdb-metals-hd4539.pdf)
+
+[![Metal lines of Feige 38 compared with OpenWD models at 28,200 K and 29,200 K](../assets/sdb-metals-feige38.png)](../assets/sdb-metals-feige38.pdf)
+
+Other metal lines at the Teff that fits the silicon ionization (blue), with
+the published-Teff model (orange) for reference. The models are the same as
+in the figure above.
+
+- HD 4539 at 25,200 K: N II, S III and Fe III are deeper and close to the
+  observed depths (core depth of N II 3995 Å: 0.14 against 0.16 observed,
+  0.11 at 23,200 K; S III 4254 Å: 0.042 against 0.060, 0.026; Fe III 4165 Å:
+  0.054 against 0.058, 0.036). Mg II 4481 Å weakens towards the data.
+  C II 4267 Å barely changes and stays slightly too weak.
+- Feige 38 at 29,200 K: N II, O II and Fe III barely change, and S III gets
+  closer to the data. C II 4267 Å becomes weaker (0.12 against 0.19
+  observed; 0.14 at 28,200 K), and Si IV 4089/4116 Å, which matches at the
+  published Teff, becomes about 1.5 times too strong.
+- In Feige 38 at every Teff, Si III 4552–4575 Å is too weak and
+  Si III 4813–4829 Å is 1.3–1.5 times too strong.
+
+The silicon ionization balance therefore favors a higher Teff than the
+published H/He value. In HD 4539 the other metal lines agree; in Feige 38
+carbon and Si IV do not. Use it as a Teff diagnostic with care.
+
+[![Silicon lines of OpenWD and TLUSTY/SYNSPEC at the HD 4539 parameters](../assets/sdb-silicon-tlusty.png)](../assets/sdb-silicon-tlusty.pdf)
+
+OpenWD and TLUSTY 208/SYNSPEC at the HD 4539 parameters, with silicon only
+(BSTAR2006 Si II–IV atoms in TLUSTY). Solid lines are NLTE and dashed lines
+LTE. The TLUSTY NLTE H/He structure agrees with the OpenWD structure to 0.2%
+where the lines form. Both codes give the same Si II/Si III ratio (0.37) and
+the same Si III 4552 Å equivalent width (30 mÅ against 65 mÅ observed).
+
 ## Limitations
 
-- The structure is LTE and metal-free. Metal blanketing does not feed back
-  into the temperature structure.
+- The structure is LTE. Metal blanketing uses the abundances of the model,
+  not a scaled solar mixture.
+- At the published Teff, Si II is too strong relative to Si III (see
+  [Silicon ionization](#silicon-ionization)).
 - The LTE structure becomes less accurate above about 40,000 K.
 - Radiation pressure and vertical abundance stratification are not included.
 - He I lines assume ⁴He.

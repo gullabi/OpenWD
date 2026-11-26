@@ -1,8 +1,9 @@
 #!/bin/bash
 # Typical-sdB metals on every finished host of the H/He robustness grid (sdb_grid_check.sh).
 #   research/sdb_metal_grid.sh GRID_DIR
-# Writes GRID_DIR/<tag>-metals, one model at a time, single-threaded; no blanketing
-# (the metal-free LTE H/He structure is kept).
+# Writes GRID_DIR/<tag>-metals, one model at a time, single-threaded.  The hosts
+# are the metal-free H/He grid, so the driver gets --metal-free-structure; the
+# default sdB recipe blankets the LTE structure (sdb_lte_hhe.py --abundance).
 #
 # Abundances: Geier (2013, A&A 549, A110; VizieR J/A+A/549/A110) median over the
 # 106-star sample of each element's measured log eps (stars with only upper limits
@@ -22,7 +23,7 @@ for HOST in "$GRID"/*-hybrid; do
   echo "=== $TAG start $(date +%H:%M:%S)"
   python research/sdb_trace_metals.py "$GRID/$TAG-lte" "$HOST" --data-root "$DATA" \
     --abundance C=-4.83 --abundance N=-4.38 --abundance O=-4.28 --abundance Si=-5.29 --abundance S=-5.23 \
-    --lte-abundance Mg=-5.40 --lte-abundance Al=-6.40 --lte-abundance Fe=-4.63 \
+    --lte-abundance Mg=-5.40 --lte-abundance Al=-6.40 --lte-abundance Fe=-4.63 --metal-free-structure \
     --output "$GRID/$TAG-metals" > "$GRID/$TAG-metals.log" 2>&1
   echo "=== $TAG metals exit $? $(date +%H:%M:%S)"
 done

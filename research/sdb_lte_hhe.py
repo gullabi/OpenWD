@@ -6,6 +6,11 @@
 
 Step 1 of the sdB build-up (LTE H/He structure and spectrum, no metals).
 Writes the ModelResult plus spectrum.npz (vacuum wavelengths, surface F_lambda).
+
+--abundance X=value (log10 N(X)/N(H), repeatable) adds metals to the LTE
+structure: their opacity (opacity-sampled lines and bound-free edges) and
+electrons enter the temperature correction and the charge closure
+(DABConfig.abundances).  The later NLTE stages keep the H/He atoms.
 """
 from __future__ import annotations
 
@@ -26,14 +31,18 @@ def main():
     parser.add_argument('--logg', type=float, required=True)
     parser.add_argument('--log-he-h', type=float, required=True, help='log N(He)/N(H)')
     parser.add_argument('--quality', choices=['standard', 'production'], default='standard')
+    parser.add_argument('--abundance', action='append', default=[], metavar='X=VALUE',
+                        help='metal in the LTE structure, log10 N(X)/N(H) (repeatable)')
     parser.add_argument('--data-root', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError('choose a new output directory')
 
+    abundances = {k: float(v) for k, v in (item.split('=') for item in args.abundance)}
     config = DABConfig(effective_temperature=args.teff, logg=args.logg,
-                       log_hydrogen_to_helium=-args.log_he_h, quality=args.quality)
+                       log_hydrogen_to_helium=-args.log_he_h, quality=args.quality,
+                       abundances=abundances or None)
     wavelength = np.arange(3000.0, 9200.0, 0.05)
     start = time.monotonic()
     progress = []
@@ -48,7 +57,8 @@ def main():
     save_model_result(result, args.output)
     np.savez(args.output / 'spectrum.npz', wavelength_vacuum=result.spectrum.wavelength_angstrom,
              flux=result.spectrum.surface_flux_lambda)
-    summary = dict(config=dict(teff=args.teff, logg=args.logg, log_he_h=args.log_he_h, quality=args.quality),
+    summary = dict(config=dict(teff=args.teff, logg=args.logg, log_he_h=args.log_he_h, quality=args.quality,
+                               abundances=abundances),
                    elapsed_seconds=elapsed,
                    atmosphere_convergence_status=result.metadata.get('atmosphere_convergence_status'),
                    iterations=len(progress))
