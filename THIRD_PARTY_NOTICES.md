@@ -172,6 +172,15 @@ OpenWD's BSD source-code license:
   86f265a6bad0dcfa45202153e68b5090f8e284f5caac061dd7aea0d3c0ab7384). Credit
   Hubeny and Lanz (and Lanz & Hubeny 2003, 2007 for the OSTAR2002/BSTAR2006
   grids that use it).
+- TLUSTY's BSTAR2006 model atoms for C II, N II–IV, O II–III, Si III–IV and
+  S III–IV (`tlusty-atoms/c2.dat`, `n2_32+10lev.dat`, `n3.dat`,
+  `n4_34+14lev.dat`, `o2_36+12lev.dat`, `o3_28+13lev.dat`, `si3.dat`,
+  `si4.dat`, `s3_29+12lev.dat` and `s4_33+5lev.dat`). They are copied
+  unmodified from the `data/` directory of the TLUSTY 208 distribution, carry
+  Opacity Project photoionization cross sections, and are used by the sdB metal
+  driver. Their SHA-256 checksums are pinned in
+  `tests/test_sdb_trace_photoionization.py`. Credit Hubeny and Lanz,
+  Lanz & Hubeny (2007) and the Opacity Project.
 - Tübingen Model-Atom Database (TMAD) C III--V and O III--VII structure and
   formal-synthesis atoms under `tmad-atoms/`. Credit T. Rauch and the TMAD
   contributors; the files retain their embedded authorship headers.

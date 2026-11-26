@@ -11,8 +11,10 @@ species solved by the hot-DAZ fixed-host NLTE machinery
 (``solve_hot_trace_metals``), with these components:
 - the Stout (CHIANTI-format) C II-IV levels and lines, using compact atoms
   that reach the upper levels of the main optical lines;
-- Verner ground-state and Kramers excited-level photoionization, with
-  TLUSTY/OP tables for C III and C IV;
+- Opacity Project photoionization from the TLUSTY model atoms for C II-IV,
+  N II-IV, O II-IV, Si II-IV and S II-IV (every explicit level whose term
+  matches); Verner ground-state and hydrogenic Kramers excited-level cross
+  sections for the remaining levels;
 - CHIANTI collision strengths for C II, C III and C IV;
 - MALI line preconditioning.
 Writes spectrum.npz (host+carbon and host-only), populations, run-summary.json.
@@ -49,6 +51,11 @@ from hot_trace_oxygen_collisions import oxygen_collisions
 # optical lines (Stout energy ranks): N II 3s/3p/3d <= 40, N III <= 19,
 # O II 3s/3p/3d <= 39 (4649, 4072/76, 4414/17, 3919), O III <= 34,
 # Si III 4s/4p <= 20 and 4p'/4d (4813-29) <= 62, Si IV <= 7, S III 4s/4p <= 36.
+# Si II needs more than its optical upper levels (3d-4f 4128-31, rank 19): the
+# Si II/Si III balance runs through photoionization of the excited levels, and
+# at 25 kK, log g 5.2 the Si II 4128-31/Si III 4552-75 ratio falls by 11% from
+# 30 to 60 levels and by a further 3% at 80 (100 levels add unlinked terms near
+# the limit and disconnect the rate system).
 # Iron is not in this table: its optical Fe III lines (4p, rank ~406) need a
 # 400-level Fe III atom with 7e4 lines (60 s per iteration), while compact
 # Fe III/IV atoms hold only forbidden 3d^n lines.  Iron (and other
@@ -58,10 +65,29 @@ ELEMENT_LEVELS = {
     'C': {1: 200, 2: 80, 3: 20, 4: 1},
     'N': {1: 60, 2: 40, 3: 10, 4: 1},
     'O': {1: 60, 2: 40, 3: 10, 4: 1},
-    'Si': {1: 30, 2: 62, 3: 15, 4: 1},
+    'Si': {1: 60, 2: 62, 3: 15, 4: 1},
     'S': {1: 30, 2: 45, 3: 10, 4: 1},
 }
 CARBON_LEVELS = ELEMENT_LEVELS['C']
+# Opacity Project photoionization tables (TLUSTY model atoms; the BSTAR2006
+# set, except the TLUSTY 200 C III and O IV atoms already used by the hot
+# DA/DAO and PG 1159 models) by element and charge.  A level whose term has no
+# match keeps the Verner (ground) or hydrogenic Kramers (excited) fallback.
+# The Kramers form underestimates the cross sections of the low excited levels
+# that carry the ionization of the lower stages, by factors of 3-15 near
+# threshold for Si II 3d, 4s, 4p and 3s3p2 (autoionizing resonances; on
+# average 2-9 for N II, O II, S II and S III).  Those stages were therefore
+# underionized: Si II 4128-31 too strong against Si III 4552-75 at fixed
+# parameters.
+TLUSTY_PHOTOIONIZATION = {
+    'C': {1: 'c2.dat', 2: 'c3.dat', 3: 'c4_35+2lev.dat'},
+    'N': {1: 'n2_32+10lev.dat', 2: 'n3.dat', 3: 'n4_34+14lev.dat'},
+    'O': {1: 'o2_36+12lev.dat', 2: 'o3_28+13lev.dat', 3: 'o4.dat'},
+    'Si': {1: 'si2_36+4lev.dat', 2: 'si3.dat', 3: 'si4.dat'},
+    'S': {1: 's2_23+10lev.dat', 2: 's3_29+12lev.dat', 3: 's4_33+5lev.dat'},
+}
+# The tables used before 2026-11 (comparison runs only): OP for C III-IV.
+CARBON_ONLY_PHOTOIONIZATION = {'C': {2: 'c3.dat', 3: 'c4_35+2lev.dat'}}
 # NIST ASD ionization energies (eV) for stages Stout leaves blank.
 NIST_IONIZATION_EV = {('Ti', 3): 43.26717, ('Ti', 4): 99.299, ('Ni', 3): 54.92, ('Ni', 4): 76.06,
                       ('Zn', 3): 59.573, ('Zn', 4): 82.6}
@@ -127,6 +153,10 @@ def main():
                              'Needed at 30 kK, log g 5.3 (S III 702.8 on O III 702.8)')
     parser.add_argument('--levels', action='append', default=[],
                         help='override an atom size, ELEMENT:CHARGE=COUNT (e.g. C:1=200)')
+    parser.add_argument('--photoionization-tables', choices=['opacity-project', 'carbon-only'],
+                        default='opacity-project',
+                        help="'carbon-only' (comparison runs): OP data for C III-IV only, Verner ground and "
+                             "hydrogenic excited levels elsewhere, as before 2026-11 (with --levels Si:1=30)")
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError('choose a new output directory')
@@ -153,10 +183,11 @@ def main():
     if 'O' in counts:
         found, found_audit = oxygen_collisions(bundled.CHIANTI_OXYGEN, database, counts['O'], charges=(2,))
         collisions.update(found); audit.update({f'O {k}': v for k, v in found_audit.items()})
-    thresholds = {}
-    if 'C' in counts:
-        thresholds['C'] = {2: read_tlusty_photoionization_threshold_data(data.tlusty_atoms / 'c3.dat'),
-                           3: read_tlusty_photoionization_threshold_data(data.tlusty_atoms / 'c4_35+2lev.dat')}
+    tables = (TLUSTY_PHOTOIONIZATION if args.photoionization_tables == 'opacity-project'
+              else CARBON_ONLY_PHOTOIONIZATION)
+    thresholds = {e: {q: read_tlusty_photoionization_threshold_data(data.tlusty_atoms / name)
+                      for q, name in tables[e].items() if q in counts[e]}
+                  for e in counts if e in tables}
     # Uniform sampling: a fine grid only around a fixed line list misses any
     # other line (e.g. O II 4591) between coarse samples.
     wavelength = np.arange(3700., 7000., args.step)
@@ -241,6 +272,8 @@ def main():
         lte_abundances=lte_abundances, lte_minimum_oscillator_strength=args.lte_minimum_oscillator_strength,
         heavy_abundances=heavy_abundances, heavy_lines=0 if heavy is None else len(heavy.lines),
         levels_per_charge=counts, converged=bool(result.converged), iterations=int(result.iterations),
+        photoionization_tables=args.photoionization_tables,
+        opacity_project_photoionization={e: {q: tables[e][q] for q in t} for e, t in thresholds.items()},
         population_defect=float(result.population_defect), elapsed_seconds=time.monotonic() - start,
         chianti_collision_pairs={k: v['selected_pairs'] for k, v in audit.items()}, history=history,
         element_population_defect_history=result.metadata.get('element_population_defect_history'),

@@ -106,6 +106,11 @@ stage) and `converged` (metal stage) in each summary.
   holds the H/He structure and populations fixed. C, N, O, Si and S are solved
   in NLTE with ALL model atoms (van Hoof et al. 2018). CHIANTI collision
   strengths are used for C II–IV and O III (Del Zanna et al. 2021).
+  Photoionization of C, N, O, Si and S (all stages below the top one) uses
+  the Opacity Project cross sections of the TLUSTY model atoms (Hubeny &
+  Lanz 2017), most of them the BSTAR2006 atoms (Lanz & Hubeny 2007). Levels
+  without a matching term, mostly Rydberg levels of the large C II and C III
+  atoms, use hydrogenic cross sections.
 - **LTE metal lines (driver).** Other elements enter as LTE line opacity at the
   host electron density. Sr II–III, Zr III–IV and the N II 3d–4f lines come
   from Kurucz (2011). Ge III and Y III come from Naslim et al. (2011), and Sn IV
