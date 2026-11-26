@@ -147,6 +147,26 @@ marks telluric bands. "IS" marks interstellar Ca II and Na D.
 - LS IV−14°116: the C II and N II lines agree except C II 4267 Å, which is
   too weak. The model cores of Hγ and Hδ are shallower than observed.
 
+### Metal lines
+
+[![Two 100 Å windows of HD 4539 and LS IV−14°116 with labelled metal lines](../assets/sdb-zoom-lines.png)](../assets/sdb-zoom-lines.pdf)
+
+Two windows of about 100 Å with the same models and normalization as the
+figure above, in air wavelengths. Each label names the model feature it
+points to. `research/plot_sdb_zoom_lines.py` matches each absorption of the
+model to the lines within 0.3 Å and names the strongest one by an LTE opacity
+estimate at Rosseland optical depth 0.3 of the star's structure. A second
+species of similar strength is named as a blend.
+
+- LS IV−14°116: the heavy-element lines (Zr IV 4198 Å, Sn IV 4216 Å,
+  Ge III 4261 and 4292 Å, Sr III 5023 Å) and the N II lines match the
+  observed depths to within about 10%. C II 4267 Å is too weak (core depth
+  0.13 against 0.20).
+- HD 4539, at the published Teff: the N II lines are 1.5–2 times and
+  S III 4253 Å about 2.5 times too shallow, and Ar II 4278 Å is too deep. N II
+  and S III move toward the data at 25,200 K (see
+  [Silicon ionization](#silicon-ionization)).
+
 ### Silicon ionization
 
 [![Si II and Si III lines of HD 4539 and Feige 38 compared with OpenWD models at the published and higher Teff](../assets/sdb-silicon.png)](../assets/sdb-silicon.pdf)
