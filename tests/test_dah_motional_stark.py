@@ -1,4 +1,4 @@
-"""Motional Stark kernel of the H-alpha Zeeman components (balmer_line_broadening="motional")."""
+"""Motional Stark kernel of the H-alpha and H-beta Zeeman components (balmer_line_broadening="motional")."""
 
 import numpy as np
 import pytest
@@ -38,8 +38,10 @@ def test_table_wavelengths_match_h2db_components():
     with np.load(ModelData.default().motional_stark_table) as values:
         grid, labels, wavelength = values["field_megagauss"], values["labels"], values["wavelength_infinite_mass_angstrom"]
     for field in (190., 280., 450.):
-        components = db.balmer_components(3, rest, field, np.array([18000.]), minimum_relative_strength=0.)
-        h2db = {tuple(label): w for label, w in zip(components.labels, components.wavelength_angstrom)}
+        h2db = {}
+        for upper, line in ((3, rest), (4, BALMER_LINES[1].wavelength_vacuum_angstrom)):
+            components = db.balmer_components(upper, line, field, np.array([18000.]), minimum_relative_strength=0.)
+            h2db.update({tuple(label): w for label, w in zip(components.labels, components.wavelength_angstrom)})
         j = int(np.argmin(np.abs(grid - field)))
         for label, w in zip(labels, wavelength[:, j]):
             if 0. < w < 2e4:  # optical/IR components (others vanish or turn negative)
@@ -91,3 +93,40 @@ def test_motional_dispersion_is_the_hilbert_partner_of_its_absorption():
         np.testing.assert_allclose(phase, numeric, rtol=0, atol=2e-3 * np.abs(numeric).max())
         far = np.abs(wave - BALMER_LINES[0].wavelength_vacuum_angstrom) > 500.  # the Faraday wing
         np.testing.assert_allclose(phase[far], numeric[far], rtol=2e-3)
+
+
+def _profile_moments(table, label, field, temperature, edge):
+    """Blue and red shares and red mean within +-edge A of the exact profile at one temperature."""
+    knots, cumulative = (v[0] for v in table.profile_at(label, field, np.array([temperature])))
+    x = np.linspace(0., edge, 100001)
+    c = np.interp(x, knots, cumulative)
+    red = c[-1] - c[0]
+    return dict(blue=c[0] - np.interp(-edge, knots, cumulative), red=red,
+                red_mean=edge - trapezoid(c - c[0], x) / red)  # int x dC by parts
+
+
+def test_exact_hbeta_sigma_profile_at_366_megagauss():
+    # sigma- 2s0-4f-1 at 366 MG, 17.7 kK, inside +-296.6 A: the solver's lines give 0.2345 blue, 0.7408 red with
+    # mean 48.37 A; smoothed by 2 A they give 0.243, 0.733, 48.9 A, the numbers of preprint check run
+    # 20261125T213414Z-ulgen-2419b6 (0.243, 0.732, 49.0 A). The table's quantiles, interpolated between 360 and
+    # 370 MG and 15 and 20 kK, put the red mean ~1 A lower.
+    _, table = _data()
+    label = (0, 1, 2, -1, 1, 3)
+    assert np.isnan(table.delta_alpha_at(label, 366.))
+    m = _profile_moments(table, label, 366., 17700., 296.6)
+    assert m['blue'] == pytest.approx(0.2345, abs=0.005)
+    assert m['red'] == pytest.approx(0.7408, abs=0.005)
+    assert m['red_mean'] == pytest.approx(48.37, abs=1.5)
+
+
+def test_exact_windows_keep_the_sigma_strength():
+    # The windows of sigma- 2s0-4f-1 and 2s0-4p-1 tile the spectrum, so the strength they hold together is the
+    # F = 0 strength of the two lines (sum rule 1.597 against 1.600 in 3648-4800 A at 366 MG, run
+    # 20261125T222728Z-ulgen-d8711d); their windows reach 3648-5845 A, where ~1.4 % more comes in from outside
+    # the pair (the next F = 0 line is 3p-1 at 7280 A). Same lower level, so H2db's strengths weigh the shares.
+    db, table = _data()
+    components = db.balmer_components(4, BALMER_LINES[1].wavelength_vacuum_angstrom, 366., np.array([17700.]))
+    s = {tuple(label): w[0] for label, w in zip(components.labels, components.normalized_strength)}
+    labels = [(0, 1, 2, -1, 1, 3), (0, 1, 2, -1, 1, 4)]
+    share = [table.profile_at(label, 366., np.array([17700.]))[1][0, -1] for label in labels]
+    assert sum(s[label] * w for label, w in zip(labels, share)) == pytest.approx(sum(s[label] for label in labels), rel=2e-2)

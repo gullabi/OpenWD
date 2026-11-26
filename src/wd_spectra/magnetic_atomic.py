@@ -1321,14 +1321,23 @@ def _read_h2db_energies_cached(path_string: str) -> H2dbEnergyDatabase:
 
 @dataclass(frozen=True)
 class MotionalStarkTable:
-    """Delta alpha = alpha_up - alpha_low [atomic units] of H2db components.
+    """Delta alpha = alpha_up - alpha_low [atomic units] of H2db components, and
+    exact F-averaged profiles where second order fails.
 
-    Built by ``tools/build_motional_stark_table.py``; NaN where the second-order
-    motional shift does not apply (see there).
+    Built by ``tools/build_motional_stark_table.py``; Delta alpha is NaN where
+    the second-order motional shift does not apply (see there). ``profiles``
+    holds per label the quantiles [A from the F = 0 line] of the blue and red
+    parts ([field, temperature, 2 * len(profile_levels)]) and their strength
+    shares relative to the F = 0 line ([field, temperature, 2]); NaN where the
+    component has no exact profile.
     """
 
     field_megagauss: FloatArray
     delta_alpha: dict[tuple[int, ...], FloatArray]
+    profile_field_megagauss: FloatArray
+    profile_temperature_kelvin: FloatArray
+    profile_levels: FloatArray
+    profiles: dict[tuple[int, ...], tuple[FloatArray, FloatArray]]
 
     def delta_alpha_at(self, labels: ArrayLike, field_strength_megagauss: float) -> float:
         """Linear interpolation in B; NaN outside the table or next to a NaN node."""
@@ -1341,14 +1350,52 @@ class MotionalStarkTable:
         weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
         return float((1.0 - weight) * values[index] + weight * values[index + 1])
 
+    def profile_at(
+        self, labels: ArrayLike, field_strength_megagauss: float, temperature: FloatArray
+    ) -> tuple[FloatArray, FloatArray] | None:
+        """Exact profile per temperature: knots [A from the F = 0 line] and the
+        cumulative strength there (relative to the F = 0 line), [depth, knot],
+        piecewise linear between knots. Quantiles and shares are linear in B
+        and T (T clamped to the nodes). None outside the table or next to a
+        node without a profile."""
+
+        entry = self.profiles.get(tuple(int(x) for x in labels))
+        grid = self.profile_field_megagauss
+        if entry is None or not grid[0] <= field_strength_megagauss <= grid[-1]:
+            return None
+        knots, shares = entry
+        index = min(int(np.searchsorted(grid, field_strength_megagauss, side="right")) - 1, grid.size - 2)
+        if not np.all(np.isfinite(shares[index:index + 2])):
+            return None
+        weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
+        nodes = self.profile_temperature_kelvin
+        t = np.clip(np.asarray(temperature, dtype=np.float64), nodes[0], nodes[-1])
+        j = np.clip(np.searchsorted(nodes, t, side="right") - 1, 0, nodes.size - 2)
+        u = ((t - nodes[j]) / (nodes[j + 1] - nodes[j]))[:, np.newaxis]
+
+        def at(values: FloatArray) -> FloatArray:
+            node = (1.0 - weight) * values[index] + weight * values[index + 1]
+            return (1.0 - u) * node[j] + u * node[j + 1]
+
+        share = at(shares)
+        levels = self.profile_levels[np.newaxis, :]
+        return at(knots), np.concatenate((share[:, :1] * levels, share[:, :1] + share[:, 1:] * levels), axis=1)
+
 
 @lru_cache(maxsize=2)
 def _read_motional_stark_cached(path_string: str) -> MotionalStarkTable:
     with np.load(path_string) as values:
+        knots = np.concatenate((values["profile_blue_angstrom"], values["profile_red_angstrom"]), axis=-1)
+        shares = np.stack((values["profile_blue_share"], values["profile_red_share"]), axis=-1)
+        labels = [tuple(int(x) for x in label) for label in values["labels"]]
         return MotionalStarkTable(
             np.asarray(values["field_megagauss"], dtype=np.float64),
-            {tuple(int(x) for x in label): np.asarray(row, dtype=np.float64)
-             for label, row in zip(values["labels"], values["delta_alpha"])},
+            {label: np.asarray(row, dtype=np.float64) for label, row in zip(labels, values["delta_alpha"])},
+            np.asarray(values["profile_field_megagauss"], dtype=np.float64),
+            np.asarray(values["profile_temperature_kelvin"], dtype=np.float64),
+            np.asarray(values["profile_quantile_levels"], dtype=np.float64),
+            {label: (np.asarray(k, dtype=np.float64), np.asarray(s, dtype=np.float64))
+             for label, k, s in zip(labels, knots, shares) if np.isfinite(s).any()},
         )
 
 
