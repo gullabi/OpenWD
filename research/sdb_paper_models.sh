@@ -52,4 +52,8 @@ star feige46 36100 5.93 -0.32 "C=-3.19 N=-3.57 O=-4.21 Si=-5.51" "Ne=-4.31 Mg=-5
 star hd4539 23200 5.20 -2.27 "C=-4.06 N=-4.10 O=-4.97 Si=-5.30 S=-5.17" "Mg=-5.40 Al=-6.40 Ar=-4.83 Fe=-4.62" \
   "--heavy-abundance N=-4.10"
 star feige38 28200 5.61 -2.70 "C=-4.23 N=-3.98 O=-4.35 Si=-4.52 S=-4.87" "Mg=-4.90 Al=-6.20 Ar=-4.90 Fe=-4.84"
+# Not in the default targets: HD 4539 at 25,200 K, the Teff that fits its Si II/Si III balance in OpenWD
+# (sdB guide, "Silicon ionization"); otherwise identical to hd4539.
+star hd4539-hot 25200 5.20 -2.27 "C=-4.06 N=-4.10 O=-4.97 Si=-5.30 S=-5.17" "Mg=-5.40 Al=-6.40 Ar=-4.83 Fe=-4.62" \
+  "--heavy-abundance N=-4.10"
 echo "=== paper models done $(date +%H:%M:%S)"
