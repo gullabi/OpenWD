@@ -21,12 +21,14 @@ export PYTHONPATH=src:research
 D=src/wd_spectra/data/runtime
 COMMIT=$(git rev-parse HEAD)$(git diff --quiet HEAD -- src research || echo -dirty)
 
-star() {  # TAG TEFF LOGG LOG_HE_H "NLTE X=V ..." "LTE X=V ..."
-  local tag=$1 teff=$2 logg=$3 he=$4 nlte=$5 lte=$6 structure=() trace=() item
+star() {  # TAG TEFF LOGG LOG_HE_H "NLTE X=V ..." "LTE X=V ..." ["EXTRA metal-stage options"]
+  # The structure gets the NLTE and LTE elements (heavy elements beyond Zn are not in Stout).
+  local tag=$1 teff=$2 logg=$3 he=$4 nlte=$5 lte=$6 extra=${7:-} structure=() trace=() item
   [[ " $TARGETS " == *" $tag "* ]] || return 0
   for item in $nlte $lte; do structure+=(--abundance "$item"); done
   for item in $nlte; do trace+=(--abundance "$item"); done
   for item in $lte; do trace+=(--lte-abundance "$item"); done
+  for item in $extra; do trace+=("$item"); done
   echo "=== $tag start $(date +%H:%M:%S) commit $COMMIT"
   [ -f "$OUT/$tag-lte/run-summary.json" ] || { rm -rf "$OUT/$tag-lte"; python research/sdb_lte_hhe.py --teff "$teff" \
     --logg "$logg" --log-he-h "$he" "${structure[@]}" --data-root $D --output "$OUT/$tag-lte" > "$OUT/$tag-lte.log" 2>&1
@@ -40,8 +42,14 @@ star() {  # TAG TEFF LOGG LOG_HE_H "NLTE X=V ..." "LTE X=V ..."
   echo "$COMMIT" > "$OUT/$tag-commit.txt"
 }
 
-star lsiv14116 35500 5.85 -0.60 "C=-3.70 N=-3.82 O=-4.48 Si=-6.03" "Ne=-4.50 Mg=-5.40 Ar=-5.55 Ni=-4.62"
+# LS IV-14 116: every element Dorsch et al. (2020) measured that has data (upper limits omitted); N III with
+# 72 levels (N III 4200/4379); Ge Sr Y Zr Sn and the N II 3d-4f lines as heavy LTE lines (sdb_heavy_lines.py).
+star lsiv14116 35500 5.85 -0.60 "C=-3.70 N=-3.82 O=-4.48 Si=-6.03" \
+  "Ne=-4.50 Mg=-5.40 P=-6.76 Ar=-5.55 Ti=-5.69 Ni=-4.62 Zn=-4.92" \
+  "--heavy-abundance Ge=-5.05 --heavy-abundance Sr=-4.44 --heavy-abundance Y=-5.13 --heavy-abundance Zr=-4.76
+   --heavy-abundance Sn=-5.56 --heavy-abundance N=-3.82 --levels N:2=72"
 star feige46 36100 5.93 -0.32 "C=-3.19 N=-3.57 O=-4.21 Si=-5.51" "Ne=-4.31 Mg=-5.05 Ar=-5.75 Fe=-4.64 Ni=-4.53"
-star hd4539 23200 5.20 -2.27 "C=-4.06 N=-4.10 O=-4.97 Si=-5.30 S=-5.17" "Mg=-5.40 Al=-6.40 Ar=-4.83 Fe=-4.62"
+star hd4539 23200 5.20 -2.27 "C=-4.06 N=-4.10 O=-4.97 Si=-5.30 S=-5.17" "Mg=-5.40 Al=-6.40 Ar=-4.83 Fe=-4.62" \
+  "--heavy-abundance N=-4.10"
 star feige38 28200 5.61 -2.70 "C=-4.23 N=-3.98 O=-4.35 Si=-4.52 S=-4.87" "Mg=-4.90 Al=-6.20 Ar=-4.90 Fe=-4.84"
 echo "=== paper models done $(date +%H:%M:%S)"
