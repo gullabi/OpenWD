@@ -1,10 +1,10 @@
 # J1637 warm trajectory and fixed spectrum
 
-`warm_v7_jk_rydberg_manifold/j1637.npz` is the full-resolution regression
+`warm_v8_whole_column_line_support/j1637.npz` is the full-resolution regression
 reference for the standard J1637 request: 48 layers, 25,000-line budgets for
 structure and synthesis, and the normal optical spectrum grid.
 `manifest.json` records its hashes, equations, configuration, archived source
-certificate, and measured build timings. `warm_v7_jk_rydberg_manifold-seed.npz`
+certificate, and measured build timings. `warm_v8_whole_column_line_support-seed.npz`
 contains the corresponding input; both hashes are checked, and its arrays must
 exactly match those in the reference. The version's own README describes the
 physics change it records.
@@ -43,7 +43,7 @@ certificate:
 
 ```bash
 PYTHONPATH=src python tools/build_d6_regression.py \
-  tests/data/d6_regressions/warm_v7_jk_rydberg_manifold NEW_DIRECTORY \
+  tests/data/d6_regressions/warm_v8_whole_column_line_support NEW_DIRECTORY \
   --from-frozen-reference --spectrum-first
 ```
 
