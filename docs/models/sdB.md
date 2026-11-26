@@ -136,10 +136,16 @@ Optical spectra (gray) and OpenWD models (orange). The top three panels show
 X-shooter spectra of the He-poor star HD 4539. Its parameters come from
 Schneider et al. (2018) and its metal abundances from Geier (2013). The bottom
 three panels show UVES spectra of the He-rich star LS IV−14°116, with the
-parameters, abundances and v sin i of Dorsch et al. (2020). Light gray marks
-telluric bands. "IS" marks interstellar Ca II and Na D. HD 4539 shows no
-systematic difference from the data. For LS IV−14°116, the model cores of
-Hγ and Hδ are shallower than observed.
+parameters, abundances and v sin i of Dorsch et al. (2020). The models have
+the metal-blanketed LTE structure (`research/sdb_paper_models.sh`). Light gray
+marks telluric bands. "IS" marks interstellar Ca II and Na D.
+
+- HD 4539: the H and He lines agree with the data. Most Si II lines are
+  about 1.5 times too deep, and Si III, N II, S III and Fe III are too
+  shallow. A model 2000 K hotter fits these lines better (see
+  [Silicon ionization](#silicon-ionization)).
+- LS IV−14°116: the C II and N II lines agree except C II 4267 Å, which is
+  too weak. The model cores of Hγ and Hδ are shallower than observed.
 
 ### Silicon ionization
 
@@ -147,7 +153,8 @@ Hγ and Hδ are shallower than observed.
 
 Si II 4128/4131 Å and Si III 4552–4575 Å in HD 4539 (top) and Feige 38
 (bottom). X-shooter spectra are gray. All models use the published log g,
-He/H and abundances (Geier 2013), metals in the LTE structure
+He/H and abundances (Geier 2013; for Feige 38, log Si/H = −4.20 from Geier's
+Si III lines, while his Si IV lines give −4.85), metals in the LTE structure
 (`sdb_lte_hhe.py --abundance`) and the full metal mixture. Orange: the
 published Teff (Schneider et al. 2018). Blue: 2000 K (HD 4539) and 1000 K
 (Feige 38) hotter. The right panels show the equivalent-width ratio
