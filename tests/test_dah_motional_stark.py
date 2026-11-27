@@ -7,7 +7,8 @@ from wd_spectra._compat import trapezoid
 from wd_spectra.atmosphere import gray_hydrogen_atmosphere
 from wd_spectra.constants import LIGHT_SPEED
 from wd_spectra.magnetic import (
-    _kurucz_griem_templates, h2db_balmer_manifolds, motional_stark_profile, motional_stark_shift_hz,
+    BalmerLineTemplate, _kurucz_griem_templates, _motional_stark_template, h2db_balmer_manifolds,
+    motional_stark_profile, motional_stark_shift_hz,
 )
 from wd_spectra.magnetic_atomic import read_h2db_transition_database, read_motional_stark_table
 from wd_spectra.models.common import ModelData
@@ -145,3 +146,30 @@ def test_profile_on_a_node_next_to_a_field_without_one():
     k = np.flatnonzero(ok[:-2] & ~ok[1:-1] & ~ok[2:])[0]
     assert table.profile_at(label, grid[k], np.array([17000.])) is not None
     assert table.profile_at(label, grid[k] + 1.0, np.array([17000.])) is None
+
+
+def test_exact_profile_keeps_narrow_structure_far_from_the_line():
+    # H-alpha sigma+ (-1,1,1,0,1,3) at 300 MG, 17.7 kK: ~1.4 % of its strength sits in a narrow pile-up at +329 to
+    # +337 A from the line. The kernel's strength between fixed offsets there equals the table's to 1 %, because the
+    # kernel's mesh contains the profile's knots.
+    _, table = _data()
+    label, field, temperature = (-1, 1, 1, 0, 1, 3), 300., np.array([17700.])
+    values = np.load(ModelData.default().motional_stark_table)
+    row = [tuple(int(x) for x in v) for v in values["labels"]].index(label)
+    lam0 = float(np.interp(field, values["field_megagauss"], values["wavelength_infinite_mass_angstrom"][row]))
+    knots, cumulative = table.profile_at(label, field, temperature)
+    nu0 = LIGHT_SPEED / (lam0 * 1e-8)
+    template = BalmerLineTemplate(np.array([lam0]), np.zeros((1, 1)), None, np.ones(1))
+    kernel = _motional_stark_template(template, nu0, nu0, None, temperature, False, (knots, cumulative))
+    detuning = nu0 - LIGHT_SPEED / (kernel.wavelength_angstrom * 1e-8)  # positive towards the red
+    order = np.argsort(detuning)
+    d, opacity = detuning[order], kernel.mass_absorption_coefficient[order, 0]
+    strength = np.concatenate(([0.], np.cumsum(0.5 * (opacity[1:] + opacity[:-1]) * np.diff(d))))
+
+    def held(offset):
+        return np.interp(nu0 - LIGHT_SPEED / ((lam0 + offset) * 1e-8), d, strength)
+
+    for a, b in ((325., 333.), (333., 338.)):
+        expected = np.interp(b, knots[0], cumulative[0]) - np.interp(a, knots[0], cumulative[0])
+        assert expected > 1e-3
+        assert held(b) - held(a) == pytest.approx(expected, rel=1e-2)

@@ -435,7 +435,7 @@ def _motional_stark_template(
         tail = np.geomspace(sigma.min(), wide + np.abs(knots).max(), 300)
         detuning = np.unique(np.concatenate((
             np.arange(-wide, wide, sigma.min() / 4.0), -tail, tail,
-            -np.geomspace(wide, blue, 150), np.geomspace(wide, red, 150))))
+            -np.geomspace(wide, blue, 150), np.geomspace(wide, red, 150), knots.ravel())))
         edges = np.concatenate((detuning[:1], 0.5 * (detuning[1:] + detuning[:-1]), detuning[-1:]))
         opacity = template.strength[np.newaxis, :] * np.diff(
             _doppler_smoothed_cdf(edges, knots, profile[1], sigma), axis=0) / np.diff(edges)[:, np.newaxis]
