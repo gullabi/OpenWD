@@ -11,8 +11,10 @@ the research drivers for developers.
 The sdB models use the hybrid LTE/NLTE method for B stars and sdBs
 (Przybilla et al. 2006; Irrgang et al. 2018):
 
-1. **LTE H/He structure.** A public DAB cold start (`compute_dab`, LTE, no
-   metals) at the requested Teff, log g and He/H.
+1. **LTE H/He structure.** A public DAB cold start (`compute_dab`, LTE) at the
+   requested Teff, log g and He/H. With metals, the research driver gets the
+   same abundances (`--abundance`), so the structure is metal-blanketed (see
+   [Ionization balance](#ionization-balance)).
 2. **NLTE H/He populations.** The restricted hot H/He atom (`HotNLTEModel`)
    solves the statistical equilibrium on that fixed temperature and
    gas-pressure structure, with the formal-solution radiation field.
@@ -68,13 +70,12 @@ populations stay fixed.
   Opacity Project cross sections of the TLUSTY model atoms
   (`TLUSTY_PHOTOIONIZATION`) for each level whose term matches in threshold
   (2%), spin and L. Unmatched levels use a Verner fit (ground) or the
-  hydrogenic Kramers form (excited). Until 2026-11 only C III–IV had OP data.
-  `--photoionization-tables carbon-only` restores that for comparisons.
+  hydrogenic Kramers form (excited).
 - The low stages are ionized mainly from excited levels. Near threshold, the
   OP cross sections of those levels exceed the hydrogenic values (on average
   by 2–9 times for N II, O II, S II and S III, and by 3–15 times for the Si II
-  3d, 4s, 4p and 3s3p² levels) because of autoionizing resonances. With the
-  hydrogenic values, these stages were underionized.
+  3d, 4s, 4p and 3s3p² levels) because of autoionizing resonances. Hydrogenic
+  cross sections would underionize these stages.
 - Si II has 60 levels.
 - LTE line opacity in the fixed background: Fe, Mg and Al (`--lte-abundance`).
   The optical Fe III 4s–4p lines need a 410-level atom, which is too slow
@@ -86,45 +87,95 @@ populations stay fixed.
 
 At fixed published parameters, without abundance fits, the metal lines of
 HD 4539 (C II) and Feige 38 (N II, O II, Si III 4813–4829 Å, Fe III 4164 Å)
-match the observed depths within 0.01–0.02. Si III 4552–4575 Å, S III and
-Si IV are too weak in Feige 38.
+match the observed depths within 0.01–0.02. Si III 4552–4575 Å and S III are
+too weak in Feige 38. Si IV matches only with the blanketed structure (below).
 
 ### Ionization balance
 
 The equivalent-width ratio of Si II 4128+4131 Å to Si III 4552+4568+4575 Å
 measures the silicon ionization. Below are the ratios with the full metal
-mixture against X-shooter observations, before and after the OP cross
-sections (with the 60-level Si II atom):
+mixture against the X-shooter co-adds, with the metal-free and the blanketed
+structure (below). `research/sdb_silicon_ew_observed.py` integrates ±1.6 Å after
+division by the convolved H/He host and a linear continuum through the
+window edges, in the same way for the model and the observation. The grid
+point has no observation and uses `research/sdb_silicon_ew.py`.
 
-| Star | Before (C III–IV OP only, 30 Si II levels) | OP for all stages | Observed |
+| Star | Metal-free structure | Blanketed structure | Observed |
 | --- | --- | --- | --- |
-| 25 kK, log g 5.2 (grid) | 0.33 | 0.21 | — |
-| HD 4539 | 0.62 | 0.44 | 0.18 |
-| Feige 38 | 0.27 | 0.17 | 0.08 |
-
-The Si II lines move about halfway to the observed depths. Si III 4552–4575 Å
-barely changes and stays too weak. The OP data for the other elements weaken
-the low stages. In Feige 38, C II 4267 Å drops from 0.21 to 0.16 against
-0.19 observed, while C III stays too weak, so the C II/C III balance
-improves. N II changes by at most 0.015 (N II 5679 Å now matches). O II and
-S III change by less than 0.01. Si IV becomes weaker and was already too weak
-in Feige 38. Feige 38 needs 80 metal iterations instead of 67.
+| 25 kK, log g 5.2 (grid) | 0.21 | — | — |
+| HD 4539 | 0.44 | 0.36 | 0.11 |
+| Feige 38 | 0.17 | 0.13 | 0.08 |
 
 TLUSTY/SYNSPEC with the BSTAR2006 model at 20 kK, log g 4.0 and solar Si
 (no microturbulence) gives a ratio of 1.09 in LTE and 0.73 in NLTE. With the
 same structure, OpenWD gives 1.07 in LTE, so the line formation agrees. In
-NLTE, OpenWD gives 0.64 with OP and 0.76 with the hydrogenic cross sections.
+NLTE, OpenWD gives 0.64.
+Line by line, OpenWD NLTE agrees with SYNSPEC NLTE to within 10%
+(Si II 4128 Å: 49.7 against 51.2 mÅ; Si III 4552 Å: 67.1 against 65.0 mÅ).
 The remaining difference comes from the structure. The OpenWD metal-free LTE
 H/He structure at the same parameters is 300–400 K cooler where the lines
 form (column mass 0.03–0.4 g cm⁻²), and it raises the ratio by a factor of
 1.27 in both LTE and NLTE.
 
-In an experiment (`research/sdb_blanketed_host.py`), the T(m) of an LTE
-DAZ at the HD 4539 parameters and abundances was put into the H/He host. The
-DAZ has metal opacity in the structure but no He. It converged in 119 s and is
-1.1–1.5% hotter at column mass 0.01–0.3 g cm⁻². It lowers the HD 4539 ratio
-from 0.44 to 0.36. Si III becomes 9% stronger and Si II about 10% weaker.
-Other metal lines change by at most 0.01.
+**Blanketed structure.** `research/sdb_lte_hhe.py --abundance X=value` adds
+metals to the LTE structure (`DABConfig.abundances`: opacity-sampled lines,
+bound-free edges and metal electrons). This is the default recipe:
+`sdb_trace_metals.py` stops for a metal-free host unless it gets
+`--metal-free-structure` (used by `sdb_metal_grid.sh` on the H/He grid), warns
+if the structure abundances differ, and records them as
+`structure_abundances`. The NLTE H/He and metal stages do not change. With the published abundances, the structure is 1.1–1.5% (HD 4539)
+and 1.5–2.1% (Feige 38) hotter at column mass 0.01–0.3 g cm⁻². It is not
+slower: the LTE structure takes 387 s and 400 s (353 s and 627 s without
+metals), and the NLTE H/He stage converges in fewer iterations (687 s and
+676 s instead of 1110 s and 1172 s). The silicon ratio drops by factors of 1.21
+(HD 4539) and 1.34 (Feige 38). In Feige 38, Si IV 4089 and 4116 Å then match
+the observed equivalent widths (25 and 20 mÅ against 26 and 20 mÅ). Other
+metal-line depths change by at most 0.01.
+
+The ratio is still 3 (HD 4539) and 1.6 (Feige 38) times the observed value.
+Si II is too strong (Si II 5041/5056 Å are absent in Feige 38) and
+Si III 4552–4575 Å is too weak, by factors of 2 (HD 4539) and 1.4
+(Feige 38). The Si III triplet is close to LTE: at HD 4539, NLTE
+strengthens Si III 4552 Å by 8%. Geier (2013) measured the silicon
+abundances from Si III and Si IV with LTE models. For Feige 38 Geier used
+Teff = 30,600 K (here 28,200 K), and Si III and Si IV give abundances that
+differ by 0.65 dex. In HD 4539, nearly all metal lines (C II, N II, Si III,
+S III and the LTE Fe III lines) are about half the observed depth at the
+abundances of Geier (2013). This affects the line strengths but not the
+ratio.
+
+TLUSTY 208 reproduces OpenWD at the HD 4539 parameters. The TLUSTY model has
+H, He and Si in NLTE (BSTAR2006 Si II–IV atoms, log Si/H = −5.30) and no other
+metals. Its NLTE H/He structure agrees with the OpenWD metal-free LTE
+structure to 0.2% at column mass 0.01–0.3 g cm⁻². SYNSPEC gives a silicon
+ratio of 0.375 on the TLUSTY model, and OpenWD (silicon only, on its own
+structure) gives 0.372. The individual Si II and Si III lines agree to within
+8%: Si III 4552 Å is 30 mÅ in both, against 65 mÅ observed. In LTE on the
+blanketed OpenWD structure, SYNSPEC reproduces the OpenWD equivalent widths
+of Si II, Si III, C II, N II, S III and Fe III to within 4% (Fe III 4164 Å:
+9%), and the continuum to within 1%. The remaining discrepancy is therefore
+not specific to OpenWD. At the published parameters and abundances, hybrid
+and full NLTE models both give Si II too strong and Si III too weak.
+
+**Teff sensitivity** (a diagnostic, not a fit). These models are 500–3000 K
+hotter than the published Teff, with log g, He/H and abundances fixed and
+the blanketed structure.
+
+- HD 4539 at 25,200 K (+2000 K) gives a silicon ratio of 0.116 (observed
+  0.11).
+  - The Si II 4128/4131 Å and Si III 4568/4575 Å profiles then match.
+    Si III 4552 Å is 25% too shallow.
+  - The single-line ratio Si II 4128/Si III 4552 matches at about 26,000 K.
+  - The OpenWD Balmer lines fit the X-shooter spectrum best at 24,200 K. At
+    25,200 K they fit as well as at 23,200 K, and at 26,200 K they fit
+    worse. He I barely changes.
+- Feige 38: Si II 4128/Si III 4552 matches at 29,200 K (+1000 K). The
+  Balmer lines fit best at 30,200–31,200 K; Geier (2013) used 30,600 K.
+  - Si IV 4089/4116 Å, which matches at 28,200 K, becomes 1.4 (29,200 K) to
+    2 (30,200 K) times too strong.
+  - At every Teff, Si III 4552–4575 Å is 1.45 times too weak and
+    Si III 4813–4829 Å is 1.3–1.5 times too strong. A Teff change does not
+    remove this disagreement between the Si III multiplets.
 
 ## Research scripts
 
@@ -134,15 +185,14 @@ Other metal lines change by at most 0.01.
 | `research/sdb_metal_grid.sh` | The same grid with typical metal abundances |
 | `research/sdb_fixed_point_check.py` | One unpreconditioned update on a converged model |
 | `research/sdb_blanketing_check.py` | Effect of metal opacity on the structure (LTE DA against DAZ) |
-| `research/sdb_blanketed_host.py` | H/He host with the T(m) of an LTE DAZ (blanketing experiment) |
 | `research/sdb_silicon_ew.py` | Si II/Si III equivalent widths and ratios of metal runs |
+| `research/sdb_silicon_ew_observed.py` | The same for X-shooter co-adds and models, measured identically |
 | `research/sdb_coadd_xshooter.py`, `sdb_compare_hd4539.py` | HD 4539 X-shooter comparison |
 
 ## Limitations
 
-- The structure contains no metals. At Feige 38, metal opacity heats the
-  structure by 1.6–2.4% at fixed column mass. The metal-line depths change by
-  at most 0.01, except Si IV.
+- Metal blanketing uses the model's own abundances and the Stout line list.
+  At Feige 38 it heats the structure by 1.5–2.1% where the lines form.
 - In both He I atoms, n = 5 is a superlevel coupled to n = 4 by
   Van Regemorter-type rates.
 - The hydrostatic equation does not include radiation pressure. This is

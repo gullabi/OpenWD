@@ -158,11 +158,12 @@ def predicted(model_spectrum, target, observed_air):
     return out
 
 
-def prepare(key, models, normalize, maximum_defect=None):
+def prepare(key, models, normalize, maximum_defect=None, model_dir=None):
     """Observed and predicted spectra of one target on the observed grid (vacuum A), normalized
-    per contiguous segment; NaN breaks at gaps; 'clean'/'telluric' split the observation."""
+    per contiguous segment; NaN breaks at gaps; 'clean'/'telluric' split the observation.
+    ``model_dir`` overrides the default MODELS/<key>-metals (e.g. a model at another Teff)."""
     target = TARGETS[key]
-    model_dir = models / f'{key}-metals'
+    model_dir = Path(model_dir) if model_dir is not None else models / f'{key}-metals'
     summary = json.loads((model_dir / 'run-summary.json').read_text())
     if not summary['converged'] and not (maximum_defect and summary['population_defect'] <= maximum_defect):
         raise SystemExit(f'{key}: metal populations not converged (defect {summary["population_defect"]:.3g})')

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """NLTE trace metals (default: carbon, C II-IV) on a finished hybrid sdB H/He host.
 
-    python research/sdb_trace_metals.py results/sdb/hd4539-lte-hhe-40 \
-        results/sdb/hd4539-hybrid-dominant --abundance C=-4.0 \
-        --output results/sdb/hd4539-carbon
+    python research/sdb_trace_metals.py results/sdb/hd4539-lte results/sdb/hd4539-hybrid \
+        --abundance C=-4.0 --output results/sdb/hd4539-carbon
 
-The host is the LTE H/He structure plus its converged NLTE H/He populations
-(sdb_lte_hhe.py + sdb_hybrid_nlte.py). It stays fixed: carbon is a trace
+The host is the LTE structure plus its converged NLTE H/He populations
+(sdb_lte_hhe.py + sdb_hybrid_nlte.py).  By default the LTE structure must
+carry the metals (sdb_lte_hhe.py --abundance, same values: metal-blanketed);
+--metal-free-structure accepts a metal-free host.  It stays fixed: carbon is a trace
 species solved by the hot-DAZ fixed-host NLTE machinery
 (``solve_hot_trace_metals``), with these components:
 - the Stout (CHIANTI-format) C II-IV levels and lines, using compact atoms
@@ -76,9 +77,8 @@ CARBON_LEVELS = ELEMENT_LEVELS['C']
 # The Kramers form underestimates the cross sections of the low excited levels
 # that carry the ionization of the lower stages, by factors of 3-15 near
 # threshold for Si II 3d, 4s, 4p and 3s3p2 (autoionizing resonances; on
-# average 2-9 for N II, O II, S II and S III).  Those stages were therefore
-# underionized: Si II 4128-31 too strong against Si III 4552-75 at fixed
-# parameters.
+# average 2-9 for N II, O II, S II and S III), so every photoionized stage
+# uses the Opacity Project data.
 TLUSTY_PHOTOIONIZATION = {
     'C': {1: 'c2.dat', 2: 'c3.dat', 3: 'c4_35+2lev.dat'},
     'N': {1: 'n2_32+10lev.dat', 2: 'n3.dat', 3: 'n4_34+14lev.dat'},
@@ -86,8 +86,6 @@ TLUSTY_PHOTOIONIZATION = {
     'Si': {1: 'si2_36+4lev.dat', 2: 'si3.dat', 3: 'si4.dat'},
     'S': {1: 's2_23+10lev.dat', 2: 's3_29+12lev.dat', 3: 's4_33+5lev.dat'},
 }
-# The tables used before 2026-11 (comparison runs only): OP for C III-IV.
-CARBON_ONLY_PHOTOIONIZATION = {'C': {2: 'c3.dat', 3: 'c4_35+2lev.dat'}}
 # NIST ASD ionization energies (eV) for stages Stout leaves blank.
 NIST_IONIZATION_EV = {('Ti', 3): 43.26717, ('Ti', 4): 99.299, ('Ni', 3): 54.92, ('Ni', 4): 76.06,
                       ('Zn', 3): 59.573, ('Zn', 4): 82.6}
@@ -153,17 +151,25 @@ def main():
                              'Needed at 30 kK, log g 5.3 (S III 702.8 on O III 702.8)')
     parser.add_argument('--levels', action='append', default=[],
                         help='override an atom size, ELEMENT:CHARGE=COUNT (e.g. C:1=200)')
-    parser.add_argument('--photoionization-tables', choices=['opacity-project', 'carbon-only'],
-                        default='opacity-project',
-                        help="'carbon-only' (comparison runs): OP data for C III-IV only, Verner ground and "
-                             "hydrogenic excited levels elsewhere, as before 2026-11 (with --levels Si:1=30)")
+    parser.add_argument('--metal-free-structure', action='store_true',
+                        help='accept an LTE host without metals in its structure.  The default recipe runs '
+                             'sdb_lte_hhe.py with the same --abundance values (metal-blanketed structure)')
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError('choose a new output directory')
-    args.output.mkdir(parents=True)
     abundances = dict((k, float(v)) for k, v in (item.split('=') for item in (args.abundance or ['C=-4.0'])))
     if set(abundances) - set(ELEMENT_LEVELS):
         raise SystemExit(f'configured elements: {sorted(ELEMENT_LEVELS)}')
+    # The LTE structure should carry the same metals (sdb_lte_hhe.py --abundance).
+    structure = json.loads((args.lte_model / 'run-summary.json').read_text())['config'].get('abundances') or {}
+    requested = {**abundances, **dict((k, float(v)) for k, v in (item.split('=') for item in args.lte_abundance))}
+    if not structure and not args.metal_free_structure:
+        raise SystemExit('the LTE host has no metals in its structure: run sdb_lte_hhe.py with the same '
+                         '--abundance values (the default, metal-blanketed recipe) or pass --metal-free-structure')
+    differing = sorted(e for e in requested if abs(structure.get(e, -99.0) - requested[e]) > 0.05) if structure else []
+    if differing:
+        print(f'warning: the LTE structure abundances differ for {differing}', flush=True)
+    args.output.mkdir(parents=True)
 
     data = ModelData.default(args.data_root)
     model, atmosphere, state, summary = load_host(args.lte_model, args.hybrid_model, data)
@@ -183,11 +189,9 @@ def main():
     if 'O' in counts:
         found, found_audit = oxygen_collisions(bundled.CHIANTI_OXYGEN, database, counts['O'], charges=(2,))
         collisions.update(found); audit.update({f'O {k}': v for k, v in found_audit.items()})
-    tables = (TLUSTY_PHOTOIONIZATION if args.photoionization_tables == 'opacity-project'
-              else CARBON_ONLY_PHOTOIONIZATION)
     thresholds = {e: {q: read_tlusty_photoionization_threshold_data(data.tlusty_atoms / name)
-                      for q, name in tables[e].items() if q in counts[e]}
-                  for e in counts if e in tables}
+                      for q, name in TLUSTY_PHOTOIONIZATION[e].items() if q in counts[e]}
+                  for e in counts if e in TLUSTY_PHOTOIONIZATION}
     # Uniform sampling: a fine grid only around a fixed line list misses any
     # other line (e.g. O II 4591) between coarse samples.
     wavelength = np.arange(3700., 7000., args.step)
@@ -269,11 +273,12 @@ def main():
                                                 for f in ('population_density', 'lte_population_density')})
     (args.output / 'run-summary.json').write_text(json.dumps(dict(
         host=dict(lte=str(args.lte_model), hybrid=str(args.hybrid_model), **summary), abundances=abundances,
+        structure_abundances=structure,
         lte_abundances=lte_abundances, lte_minimum_oscillator_strength=args.lte_minimum_oscillator_strength,
         heavy_abundances=heavy_abundances, heavy_lines=0 if heavy is None else len(heavy.lines),
         levels_per_charge=counts, converged=bool(result.converged), iterations=int(result.iterations),
-        photoionization_tables=args.photoionization_tables,
-        opacity_project_photoionization={e: {q: tables[e][q] for q in t} for e, t in thresholds.items()},
+        opacity_project_photoionization={e: {q: TLUSTY_PHOTOIONIZATION[e][q] for q in t}
+                                         for e, t in thresholds.items()},
         population_defect=float(result.population_defect), elapsed_seconds=time.monotonic() - start,
         chianti_collision_pairs={k: v['selected_pairs'] for k, v in audit.items()}, history=history,
         element_population_defect_history=result.metadata.get('element_population_defect_history'),
