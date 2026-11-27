@@ -1360,8 +1360,10 @@ class MotionalStarkTable:
         temperature nodes the cumulative distributions are blended linearly (T
         clamped to the nodes): the builder's lines sit at fixed F^2 cells and T
         only reweights them, so a profile between temperature nodes is a
-        mixture of the nodes' profiles. None outside the table or next to a
-        field node without a profile (on a node, only that node counts)."""
+        mixture of the nodes' profiles. On a node only that node counts; a
+        single node without a profile (the builder drops a node when the lower
+        state mixes in some F cells) is bridged by its two neighbours. None
+        outside the table or next to two or more nodes without a profile."""
 
         entry = self.profiles.get(tuple(int(x) for x in labels))
         grid = self.profile_field_megagauss
@@ -1371,8 +1373,12 @@ class MotionalStarkTable:
         index = min(int(np.searchsorted(grid, field_strength_megagauss, side="right")) - 1, grid.size - 2)
         weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
         lo, hi = (index + 1 if weight == 1.0 else index), (index if weight == 0.0 else index + 1)  # on a node: that node only
-        if not np.all(np.isfinite(shares[[lo, hi]])):
+        finite = np.isfinite(shares).all(axis=(1, 2))
+        below, above = np.flatnonzero(finite[:lo + 1]), hi + np.flatnonzero(finite[hi:])
+        if below.size == 0 or above.size == 0 or above[0] - below[-1] > 2:
             return None
+        lo, hi = below[-1], above[0]
+        weight = 0.0 if hi == lo else (field_strength_megagauss - grid[lo]) / (grid[hi] - grid[lo])
         knots = (1.0 - weight) * knots[lo] + weight * knots[hi]  # [temperature node, knot]
         shares = (1.0 - weight) * shares[lo] + weight * shares[hi]
         levels = self.profile_levels

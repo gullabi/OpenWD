@@ -271,7 +271,8 @@ def exact_profiles(task):
 def pack(lines, nq, temperatures):
     """Quantile table from the lines file: per component, field and temperature node, nq quantiles of the blue
     (dlambda <= 0) and of the red part at levels (1 - cos(pi j/(nq - 1)))/2 (midpoint cumulative sums), and the
-    strength share of each part; each line weighted by e^-x dx of its x cell, x = x_ref T0 / T, normalised."""
+    strength share of each part; each line weighted by e^-x dx of its x cell, x = x_ref T0 / T, normalised, and by
+    omega/omega0 = lam0/(lam0 + dlambda): the lines file holds |d|^2 over the F = 0 line's, the table oscillator strengths."""
     levels = 0.5 * (1.0 - np.cos(np.pi * np.arange(nq) / (nq - 1)))
     edges = lines['x_edges']
     xr, count = 0.5 * (edges[1:] + edges[:-1]), lines['line_count']
@@ -282,8 +283,10 @@ def pack(lines, nq, temperatures):
     for i, k in zip(*np.nonzero(count)):
         part = slice(end[i, k] - count[i, k], end[i, k])
         dl, amp, cell = lines['line_dl'][part], lines['line_amp'][part], lines['line_cell'][part]
-        keep = np.abs(dl) <= WINDOW_MAX * lines['wavelength_infinite_mass_angstrom'][i, at[k]]  # lines files built before the cap
-        dl, amp, cell = dl[keep], amp[keep], cell[keep]
+        lam0 = lines['wavelength_infinite_mass_angstrom'][i, at[k]]
+        keep = np.abs(dl) <= WINDOW_MAX * lam0  # lines files built before the cap
+        dl, cell = dl[keep], cell[keep]
+        amp = amp[keep] * lam0 / (lam0 + dl)  # |d|^2 ratio -> oscillator-strength ratio, f ~ omega |d|^2
         for t, T in enumerate(temperatures):
             wx = np.exp(-xr * T0 / T) * np.diff(edges)
             a = amp * (wx / wx.sum())[cell]

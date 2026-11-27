@@ -108,23 +108,21 @@ def _profile_moments(table, label, field, temperature, edge):
 
 
 def test_exact_hbeta_sigma_profile_at_366_megagauss():
-    # sigma- 2s0-4f-1 at 366 MG, 17.7 kK, inside +-296.6 A: the solver's lines give 0.2345 blue, 0.7408 red with
-    # mean 48.37 A; smoothed by 2 A they give 0.243, 0.733, 48.9 A, the numbers of preprint check run
-    # 20261125T213414Z-ulgen-2419b6 (0.243, 0.732, 49.0 A). The table's quantiles, interpolated between 360 and
-    # 370 MG and 15 and 20 kK, put the red mean ~1 A lower.
+    # sigma- 2s0-4f-1 at 366 MG, 17.7 kK, inside +-296.6 A: the solver's own lines at the 366 MG node, weighted by
+    # e^-x dx and by omega/omega0 (oscillator strengths), give 0.2451 blue and 0.7329 red with mean 47.94 A. The
+    # table's quantiles, interpolated between 360 and 370 MG and 15 and 20 kK, put the red mean ~0.3 A lower.
     _, table = _data()
     label = (0, 1, 2, -1, 1, 3)
     assert np.isnan(table.delta_alpha_at(label, 366.))
     m = _profile_moments(table, label, 366., 17700., 296.6)
-    assert m['blue'] == pytest.approx(0.2345, abs=0.005)
-    assert m['red'] == pytest.approx(0.7408, abs=0.005)
-    assert m['red_mean'] == pytest.approx(48.37, abs=1.5)
+    assert m['blue'] == pytest.approx(0.2451, abs=0.005)
+    assert m['red'] == pytest.approx(0.7329, abs=0.005)
+    assert m['red_mean'] == pytest.approx(47.94, abs=1.5)
 
 
 def test_exact_windows_keep_the_sigma_strength():
-    # The windows of sigma- 2s0-4f-1 and 2s0-4p-1 tile the spectrum, so the strength they hold together is the
-    # F = 0 strength of the two lines (sum rule 1.597 against 1.600 in 3648-4800 A at 366 MG, run
-    # 20261125T222728Z-ulgen-d8711d); their windows reach 3648-5845 A, where ~1.4 % more comes in from outside
+    # The windows of sigma- 2s0-4f-1 and 2s0-4p-1 tile the spectrum, so the strength they hold together is close to
+    # the F = 0 strength of the two lines; their windows reach 3648-5845 A, where ~1.4 % more comes in from outside
     # the pair (the next F = 0 line is 3p-1 at 7280 A). Same lower level, so H2db's strengths weigh the shares.
     db, table = _data()
     components = db.balmer_components(4, BALMER_LINES[1].wavelength_vacuum_angstrom, 366., np.array([17700.]))
@@ -136,12 +134,14 @@ def test_exact_windows_keep_the_sigma_strength():
 
 def test_profile_on_a_node_next_to_a_field_without_one():
     # On a field node only that node counts: a node whose upper neighbour has no exact profile still gives its own.
+    # A single node without a profile is bridged by its neighbours (2s0-4f-1 at 285 MG: the lower state mixes with
+    # the lowest m = -2 state in a few F cells); next to two or more such nodes there is no profile.
     _, table = _data()
-    for label, (_, shares) in table.profiles.items():
-        ok = np.isfinite(shares[:, 0, 0])
-        k = np.flatnonzero(ok[:-1] & ~ok[1:])
-        if k.size:
-            break
-    field = table.profile_field_megagauss[k[0]]
-    assert table.profile_at(label, field, np.array([17000.])) is not None
-    assert table.profile_at(label, field + 1.0, np.array([17000.])) is None
+    label, grid = (0, 1, 2, -1, 1, 3), table.profile_field_megagauss
+    ok = np.isfinite(table.profiles[label][1][:, 0, 0])
+    assert not ok[grid == 285.] and ok[grid == 280.] and ok[grid == 290.]
+    bridged = [table.profile_at(label, b, np.array([17000.]))[1][0, -1] for b in (280., 285., 290.)]
+    assert bridged[1] == pytest.approx(0.5 * (bridged[0] + bridged[2]))
+    k = np.flatnonzero(ok[:-2] & ~ok[1:-1] & ~ok[2:])[0]
+    assert table.profile_at(label, grid[k], np.array([17000.])) is not None
+    assert table.profile_at(label, grid[k] + 1.0, np.array([17000.])) is None
