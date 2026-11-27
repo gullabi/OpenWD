@@ -375,14 +375,14 @@ def _doppler_smoothed_cdf(
     each knot with slope change ds, ds h(x - q), h(u) = sigma (phi(z) - |z|
     Phi(-|z|)), z = u/sigma (the convolved ramp u Phi(z) + sigma phi(z) minus
     max(u, 0)); h is negligible beyond 7 sigma, so only nearby x are touched.
-    Knots closer than 1e-3 sigma are spread to that distance (a step becomes a
+    Knots closer than 1e-6 sigma are spread to that distance (a step becomes a
     steep ramp)."""
 
     from scipy.special import ndtr
 
     result = np.empty((x.size, sigma.size))
     for d in range(sigma.size):
-        eps = 1.0e-3 * sigma[d] * np.arange(knots.shape[1])
+        eps = 1.0e-6 * sigma[d] * np.arange(knots.shape[1])
         q = np.maximum.accumulate(knots[d] - eps) + eps
         result[:, d] = np.interp(x, q, cumulative[d])
         kink = np.diff(np.concatenate(([0.0], np.diff(cumulative[d]) / np.diff(q), [0.0])))

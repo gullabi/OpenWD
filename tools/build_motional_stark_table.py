@@ -23,7 +23,7 @@ Delta alpha is NaN, and the zero-field Stark kernel is kept, where
     nearest such field (``flag_second_order``);
   * the upper level lies below the lower one (``flag_negative``).
 
-Exact profiles. Where second order fails (within one profile step of a flagged
+Exact profiles. Where second order fails (within one profile step, at least 5 MG, of a flagged
 field, not above a Landau threshold, not negative, F = 0 wavelength in
 3000-11000 A) the component gets the exact F-averaged profile instead, on a
 coarser field grid (``--bstep``): eigenstates of H_B + F x in the centred
@@ -82,6 +82,7 @@ from multiprocessing import Pool
 for _v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
     os.environ.setdefault(_v, '1')
 import numpy as np  # noqa: E402
+import scipy.linalg as la  # noqa: E402
 import scipy.sparse as sp  # noqa: E402
 import scipy.sparse.linalg as sl  # noqa: E402
 
@@ -207,6 +208,7 @@ def exact_profiles(task):
     xr = 0.5 * (X_EDGES[1:] + X_EDGES[:-1])
     lines = {i: [] for i in rows}
     mixed = {i: False for i in rows}
+    kept = {}  # eigenpairs found in each merged window in the previous x cell: start k from there
     for cell, x in enumerate(xr):
         f = np.sqrt(x) * frms
         H = {p: (sp.diags(c['E0']) + f * c['Xs']).tocsc() for p, c in C.items()}
@@ -228,15 +230,19 @@ def exact_profiles(task):
                 else:
                     merged.append([lo, hi])
             ws, Vs = [], []
-            for lo, hi in merged:  # every eigenpair inside [lo, hi]: double k until the returned pairs straddle it
-                E0 = C[p]['E0']
-                k = int(np.sum((E0 > lo - 2e-3) & (E0 < hi + 2e-3))) + 10
-                while True:
-                    w, V = _eigsh(H[p], k, 0.5 * (lo + hi))
-                    if (w.min() < lo and w.max() > hi) or k >= E0.size - 2:
+            for j, (lo, hi) in enumerate(merged):  # every eigenpair inside [lo, hi]: the k nearest the centre c
+                E0 = C[p]['E0']  # contain them all once one lies farther from c than the half width
+                c, half = 0.5 * (lo + hi), 0.5 * (hi - lo)
+                k = max(int(np.sum((E0 > lo - 2e-3) & (E0 < hi + 2e-3))), kept.get((p, j), 0)) + 10
+                while k <= 300:  # above ~300 pairs the dense solver is faster (shift-invert cost grows as k^2)
+                    w, V = _eigsh(H[p], k, c)
+                    if np.abs(w - c).max() > half or k >= E0.size - 2:
                         break
                     k *= 2
+                if k > 300:
+                    w, V = la.eigh(H[p].toarray(), subset_by_value=(lo, hi))
                 keep = (w >= lo) & (w <= hi)
+                kept[p, j] = int(keep.sum())
                 ws.append(w[keep]), Vs.append(V[:, keep])
             w, V = np.concatenate(ws), np.hstack(Vs)
             for i, r in rows.items():
@@ -345,7 +351,7 @@ def main():
                                for a, b in pairs])
             negative = ~(lam > 0)
             t1 = time.perf_counter()
-            near = np.abs(pfields[:, None] - fields[None, :]) <= args.bstep + 1e-9  # [profile field, field]
+            near = np.abs(pfields[:, None] - fields[None, :]) <= max(args.bstep, 5.0) + 1e-9  # [profile field, field]
             at = np.argmin(np.abs(fields[None, :] - pfields[:, None]), axis=1)  # nearest second-order field
             need = (second.astype(float) @ near.T > 0) & ~cont[:, at] & ~negative[:, at] & \
                 (lam[:, at] > PROFILE_WAVELENGTHS[0]) & (lam[:, at] < PROFILE_WAVELENGTHS[1])

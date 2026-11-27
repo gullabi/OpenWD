@@ -1355,9 +1355,13 @@ class MotionalStarkTable:
     ) -> tuple[FloatArray, FloatArray] | None:
         """Exact profile per temperature: knots [A from the F = 0 line] and the
         cumulative strength there (relative to the F = 0 line), [depth, knot],
-        piecewise linear between knots. Quantiles and shares are linear in B
-        and T (T clamped to the nodes). None outside the table or next to a
-        node without a profile."""
+        piecewise linear between knots. Between field nodes the quantiles and
+        shares are linear in B (a core that moves with B moves); between
+        temperature nodes the cumulative distributions are blended linearly (T
+        clamped to the nodes): the builder's lines sit at fixed F^2 cells and T
+        only reweights them, so a profile between temperature nodes is a
+        mixture of the nodes' profiles. None outside the table or next to a
+        field node without a profile."""
 
         entry = self.profiles.get(tuple(int(x) for x in labels))
         grid = self.profile_field_megagauss
@@ -1368,18 +1372,21 @@ class MotionalStarkTable:
         if not np.all(np.isfinite(shares[index:index + 2])):
             return None
         weight = (field_strength_megagauss - grid[index]) / (grid[index + 1] - grid[index])
+        knots = (1.0 - weight) * knots[index] + weight * knots[index + 1]  # [temperature node, knot]
+        shares = (1.0 - weight) * shares[index] + weight * shares[index + 1]
+        levels = self.profile_levels
+        cumulative = np.concatenate((shares[:, :1] * levels, shares[:, :1] + shares[:, 1:] * levels), axis=-1)
+        knots = knots + 1.0e-9 * np.arange(knots.shape[-1])  # strictly increasing for np.interp
         nodes = self.profile_temperature_kelvin
         t = np.clip(np.asarray(temperature, dtype=np.float64), nodes[0], nodes[-1])
         j = np.clip(np.searchsorted(nodes, t, side="right") - 1, 0, nodes.size - 2)
-        u = ((t - nodes[j]) / (nodes[j + 1] - nodes[j]))[:, np.newaxis]
-
-        def at(values: FloatArray) -> FloatArray:
-            node = (1.0 - weight) * values[index] + weight * values[index + 1]
-            return (1.0 - u) * node[j] + u * node[j + 1]
-
-        share = at(shares)
-        levels = self.profile_levels[np.newaxis, :]
-        return at(knots), np.concatenate((share[:, :1] * levels, share[:, :1] + share[:, 1:] * levels), axis=1)
+        u = (t - nodes[j]) / (nodes[j + 1] - nodes[j])
+        out_knots = np.sort(np.concatenate((knots[j], knots[j + 1]), axis=1), axis=1)
+        out_cumulative = np.empty_like(out_knots)
+        for d in range(t.size):
+            out_cumulative[d] = ((1.0 - u[d]) * np.interp(out_knots[d], knots[j[d]], cumulative[j[d]])
+                                 + u[d] * np.interp(out_knots[d], knots[j[d] + 1], cumulative[j[d] + 1]))
+        return out_knots, out_cumulative
 
 
 @lru_cache(maxsize=2)
