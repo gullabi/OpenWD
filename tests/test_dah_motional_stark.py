@@ -130,3 +130,16 @@ def test_exact_windows_keep_the_sigma_strength():
     labels = [(0, 1, 2, -1, 1, 3), (0, 1, 2, -1, 1, 4)]
     share = [table.profile_at(label, 366., np.array([17700.]))[1][0, -1] for label in labels]
     assert sum(s[label] * w for label, w in zip(labels, share)) == pytest.approx(sum(s[label] for label in labels), rel=2e-2)
+
+
+def test_profile_on_a_node_next_to_a_field_without_one():
+    # On a field node only that node counts: a node whose upper neighbour has no exact profile still gives its own.
+    _, table = _data()
+    for label, (_, shares) in table.profiles.items():
+        ok = np.isfinite(shares[:, 0, 0])
+        k = np.flatnonzero(ok[:-1] & ~ok[1:])
+        if k.size:
+            break
+    field = table.profile_field_megagauss[k[0]]
+    assert table.profile_at(label, field, np.array([17000.])) is not None
+    assert table.profile_at(label, field + 1.0, np.array([17000.])) is None

@@ -37,8 +37,13 @@ owns the strength that falls inside its window: the Voronoi cell (halfway
 points in wavelength) between its F = 0 line and the neighbouring F = 0 lines
 from the same lower state in the same polarization (other table components
 and every line with at least 1e-3 of the strongest); the outermost line of a
-group gets a symmetric cell. The windows tile the spectrum, so no strength is
-counted twice. The table stores each profile as 96 quantiles of its blue
+group gets a symmetric cell; no window reaches farther than 0.12 lambda0 from
+its line (WINDOW_MAX; ~540 A at H-beta). The windows tile the spectrum, so no
+strength is counted twice. Without the cap a window could take in a distant
+chunk of another line's strength once a neighbouring line fell below the 1e-3
+cut (H-beta sigma- 2s0-4f-1: +0.10 at +1590 A between 425 and 430 MG, which
+broke the interpolation in B); with it, far strength is left to its own
+line. The table stores each profile as 96 quantiles of its blue
 (dlambda <= 0) and 96 of its red part, dense in the tails (levels (1 -
 cos(pi j/95))/2), plus the strength share of each part, at six temperatures
 (8-40 kK; ``--temperatures`` chooses others at packing);
@@ -97,6 +102,7 @@ MMAX, T0, NQ = 60, 17000.0, 96
 TEMPERATURES = np.array([8000.0, 11000.0, 15000.0, 20000.0, 28000.0, 40000.0])
 X_EDGES = np.concatenate((np.arange(0.0, 6.0, 0.05), np.arange(6.0, 20.0 + 1e-9, 0.25)))
 PROFILE_WAVELENGTHS = (3000.0, 11000.0)
+WINDOW_MAX = 0.12  # window half width at most WINDOW_MAX lambda0 (module docstring)
 
 
 def states(nmax):
@@ -189,6 +195,7 @@ def windows(C, ops, pairs, need):
         if lo is None and hi is None:
             continue
         lo, hi = (lo if lo is not None else 2 * lam0 - hi), (hi if hi is not None else 2 * lam0 - lo)
+        lo, hi = max(lo, (1.0 - WINDOW_MAX) * lam0), min(hi, (1.0 + WINDOW_MAX) * lam0)
         out[i] = dict(ja=ja, jb=jb, pl=a[1], pu=b[1], q=q, d0=z0[jb], lam0=lam0, lo=lo, hi=hi)
     return out
 
@@ -268,12 +275,15 @@ def pack(lines, nq, temperatures):
     levels = 0.5 * (1.0 - np.cos(np.pi * np.arange(nq) / (nq - 1)))
     edges = lines['x_edges']
     xr, count = 0.5 * (edges[1:] + edges[:-1]), lines['line_count']
+    at = np.searchsorted(lines['field_megagauss'], lines['profile_field_megagauss'])  # profile field in the 5 MG grid
     end = np.cumsum(count).reshape(count.shape)
     q = np.full(count.shape + (temperatures.size, 2, nq), np.nan, np.float32)
     share = np.full(count.shape + (temperatures.size, 2), np.nan, np.float32)
     for i, k in zip(*np.nonzero(count)):
         part = slice(end[i, k] - count[i, k], end[i, k])
         dl, amp, cell = lines['line_dl'][part], lines['line_amp'][part], lines['line_cell'][part]
+        keep = np.abs(dl) <= WINDOW_MAX * lines['wavelength_infinite_mass_angstrom'][i, at[k]]  # lines files built before the cap
+        dl, amp, cell = dl[keep], amp[keep], cell[keep]
         for t, T in enumerate(temperatures):
             wx = np.exp(-xr * T0 / T) * np.diff(edges)
             a = amp * (wx / wx.sum())[cell]
