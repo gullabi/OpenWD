@@ -160,7 +160,7 @@ def test_exact_profile_keeps_narrow_structure_far_from_the_line():
     knots, cumulative = table.profile_at(label, field, temperature)
     nu0 = LIGHT_SPEED / (lam0 * 1e-8)
     template = BalmerLineTemplate(np.array([lam0]), np.zeros((1, 1)), None, np.ones(1))
-    kernel = _motional_stark_template(template, nu0, nu0, None, temperature, False, (knots, cumulative))
+    kernel = _motional_stark_template(template, nu0, nu0, None, temperature, True, (knots, cumulative))
     detuning = nu0 - LIGHT_SPEED / (kernel.wavelength_angstrom * 1e-8)  # positive towards the red
     order = np.argsort(detuning)
     d, opacity = detuning[order], kernel.mass_absorption_coefficient[order, 0]
@@ -173,3 +173,15 @@ def test_exact_profile_keeps_narrow_structure_far_from_the_line():
         expected = np.interp(b, knots[0], cumulative[0]) - np.interp(a, knots[0], cumulative[0])
         assert expected > 1e-3
         assert held(b) - held(a) == pytest.approx(expected, rel=1e-2)
+
+
+def test_exact_profiles_with_dispersion_at_98_megagauss():
+    # Knots of different depths can nearly coincide on the kernel mesh; with dispersion on, the Hilbert transform
+    # rejects coincident nodes with different values. 98 MG on a 64-depth atmosphere triggered it.
+    db, table = _data()
+    atmosphere = gray_hydrogen_atmosphere(17_000., 8.5, n_depth=64)
+    wave = np.arange(3700., 8000., 1.0)
+    templates = _kurucz_griem_templates(atmosphere, 4, True)
+    manifolds = h2db_balmer_manifolds(atmosphere, wave, 98., db, templates=templates, maximum_upper_level=4,
+                                      dispersion=True, motional_stark_table=table)
+    assert all(np.all(np.isfinite(getattr(m, q))) for m in manifolds for q in ("minus", "pi", "plus"))
